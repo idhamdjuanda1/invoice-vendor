@@ -39,7 +39,9 @@ export function PricelistsPage() {
     setErrorMessage('')
 
     try {
-      await syncPricelistsWithBusinessProfile(profile.uid)
+      await syncPricelistsWithBusinessProfile(profile.uid).catch((error) => {
+        console.error('Failed to sync pricelist vendor profile', error)
+      })
       setPricelists(await listPricelists(profile.uid))
     } catch (error) {
       console.error('Failed to load pricelists', error)

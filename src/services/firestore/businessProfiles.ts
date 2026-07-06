@@ -200,14 +200,13 @@ export async function saveBusinessProfile(userId: string, input: BusinessProfile
     { merge: true },
   )
 
-  await savePublicVendorProfile(userId, {
-    vendorName: profileData.vendorName,
-    whatsappNumber: profileData.whatsappNumber,
-    address: profileData.address,
-    logoUrl: profileData.logoUrl,
-  })
-
   try {
+    await savePublicVendorProfile(userId, {
+      vendorName: profileData.vendorName,
+      whatsappNumber: profileData.whatsappNumber,
+      address: profileData.address,
+      logoUrl: profileData.logoUrl,
+    })
     await syncPricelistVendorSnapshot(userId, {
       vendorName: profileData.vendorName,
       whatsappNumber: profileData.whatsappNumber,
@@ -215,7 +214,7 @@ export async function saveBusinessProfile(userId: string, input: BusinessProfile
       logoUrl: profileData.logoUrl,
     })
   } catch (error) {
-    console.error('Failed to sync vendor profile to published pricelists', error)
+    console.error('Failed to sync public vendor profile or published pricelists', error)
   }
 
   return getBusinessProfile(userId)
