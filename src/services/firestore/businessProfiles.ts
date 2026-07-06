@@ -99,6 +99,18 @@ export async function getBusinessProfile(userId: string) {
   return buildBusinessProfile(snapshot.id, snapshot.data())
 }
 
+export async function syncPricelistsWithBusinessProfile(userId: string) {
+  const businessProfile = await getBusinessProfile(userId)
+  if (!businessProfile) return
+
+  await syncPricelistVendorSnapshot(userId, {
+    vendorName: businessProfile.vendorName,
+    whatsappNumber: businessProfile.whatsappNumber,
+    address: businessProfile.address,
+    logoUrl: businessProfile.logoUrl,
+  })
+}
+
 export async function saveBusinessProfile(userId: string, input: BusinessProfileInput) {
   const profileRef = doc(firestore, firestoreCollections.businessProfiles, userId)
   const existingProfile = await getDoc(profileRef)

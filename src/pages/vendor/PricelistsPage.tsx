@@ -6,6 +6,7 @@ import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useAuth } from '../../features/auth/useAuth'
 import { formatCurrency } from '../../lib/formatters/currency'
+import { syncPricelistsWithBusinessProfile } from '../../services/firestore/businessProfiles'
 import { listPricelists, softDeletePricelist } from '../../services/firestore/pricelists'
 import type { PricelistRecord } from '../../types/domain'
 
@@ -38,6 +39,7 @@ export function PricelistsPage() {
     setErrorMessage('')
 
     try {
+      await syncPricelistsWithBusinessProfile(profile.uid)
       setPricelists(await listPricelists(profile.uid))
     } catch (error) {
       console.error('Failed to load pricelists', error)
