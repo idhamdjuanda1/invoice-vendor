@@ -1,0 +1,91 @@
+import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { AuthLayout } from '../components/layout/AuthLayout'
+import { DashboardLayout } from '../components/layout/DashboardLayout'
+import { PublicLayout } from '../components/layout/PublicLayout'
+import { ProtectedRoute } from '../features/auth/ProtectedRoute'
+import { AdminBackupPage } from '../pages/admin/AdminBackupPage'
+import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage'
+import { AdminTokenPage } from '../pages/admin/AdminTokenPage'
+import { AdminUserDetailPage } from '../pages/admin/AdminUserDetailPage'
+import { AdminUsersPage } from '../pages/admin/AdminUsersPage'
+import { LoginPage } from '../pages/auth/LoginPage'
+import { RegisterPage } from '../pages/auth/RegisterPage'
+import { NotFoundPage } from '../pages/NotFoundPage'
+import { PublicInvoicePage } from '../pages/public/PublicInvoicePage'
+import { PublicPricelistPage } from '../pages/public/PublicPricelistPage'
+import { AgreementDetailPage } from '../pages/vendor/AgreementDetailPage'
+import { AgreementsPage } from '../pages/vendor/AgreementsPage'
+import { DashboardPage } from '../pages/vendor/DashboardPage'
+import { ExportPage } from '../pages/vendor/ExportPage'
+import { InvoiceCreatePage } from '../pages/vendor/InvoiceCreatePage'
+import { InvoiceDetailPage } from '../pages/vendor/InvoiceDetailPage'
+import { InvoiceEditPage } from '../pages/vendor/InvoiceEditPage'
+import { InvoicesPage } from '../pages/vendor/InvoicesPage'
+import { PackagesPage } from '../pages/vendor/PackagesPage'
+import { PaymentsPage } from '../pages/vendor/PaymentsPage'
+import { PricelistCreatePage } from '../pages/vendor/PricelistCreatePage'
+import { PricelistsPage } from '../pages/vendor/PricelistsPage'
+import { ProfilePage } from '../pages/vendor/ProfilePage'
+import { ReceiptDetailPage } from '../pages/vendor/ReceiptDetailPage'
+import { ReceiptsPage } from '../pages/vendor/ReceiptsPage'
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <Navigate to="/dashboard" replace />,
+  },
+  {
+    element: <AuthLayout />,
+    children: [
+      { path: '/login', element: <LoginPage /> },
+      { path: '/register', element: <RegisterPage /> },
+    ],
+  },
+  {
+    element: (
+      <ProtectedRoute allowedRoles={['user']}>
+        <DashboardLayout role="vendor" />
+      </ProtectedRoute>
+    ),
+    children: [
+      { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/profile', element: <ProfilePage /> },
+      { path: '/packages', element: <PackagesPage /> },
+      { path: '/invoices', element: <InvoicesPage /> },
+      { path: '/invoices/new', element: <InvoiceCreatePage /> },
+      { path: '/invoices/:invoiceId', element: <InvoiceDetailPage /> },
+      { path: '/invoices/:invoiceId/edit', element: <InvoiceEditPage /> },
+      { path: '/payments', element: <PaymentsPage /> },
+      { path: '/receipts', element: <ReceiptsPage /> },
+      { path: '/receipts/:receiptId', element: <ReceiptDetailPage /> },
+      { path: '/agreements', element: <AgreementsPage /> },
+      { path: '/agreements/:agreementId', element: <AgreementDetailPage /> },
+      { path: '/pricelists', element: <PricelistsPage /> },
+      { path: '/pricelists/new', element: <PricelistCreatePage /> },
+      { path: '/pricelists/:pricelistId/edit', element: <PricelistCreatePage /> },
+      { path: '/export', element: <ExportPage /> },
+    ],
+  },
+  {
+    element: (
+      <ProtectedRoute allowedRoles={['super_admin']}>
+        <DashboardLayout role="admin" />
+      </ProtectedRoute>
+    ),
+    children: [
+      { path: '/admin', element: <AdminDashboardPage /> },
+      { path: '/admin/tokens', element: <AdminTokenPage /> },
+      { path: '/admin/users', element: <AdminUsersPage /> },
+      { path: '/admin/users/:userId', element: <AdminUserDetailPage /> },
+      { path: '/admin/backup', element: <AdminBackupPage /> },
+    ],
+  },
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: '/invoice/:slug', element: <PublicInvoicePage /> },
+      { path: '/pricelist/:slug', element: <PublicPricelistPage /> },
+    ],
+  },
+  { path: '*', element: <NotFoundPage /> },
+])

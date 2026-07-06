@@ -1,0 +1,16 @@
+export const appRoutes = {
+  login: '/login',
+  register: '/register',
+  dashboard: '/dashboard',
+  profile: '/profile',
+  packages: '/packages',
+  invoices: '/invoices',
+  payments: '/payments',
+  receipts: '/receipts',
+  agreements: '/agreements',
+  export: '/export',
+  admin: '/admin',
+  adminTokens: '/admin/tokens',
+  adminUsers: '/admin/users',
+  adminBackup: '/admin/backup',
+}

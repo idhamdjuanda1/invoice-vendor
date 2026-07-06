@@ -1,0 +1,229 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function hasProfile() {
+      return signedIn() && exists(userPath(request.auth.uid));
+    }
+
+    function currentRole() {
+      return hasProfile() ? get(userPath(request.auth.uid)).data.role : null;
+    }
+
+    function isSuperAdmin() {
+      return currentRole() == 'super_admin';
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function bootstrapConfigExists() {
+      return exists(/databases/$(database)/documents/systemConfig/bootstrap);
+    }
+
+    function bootstrapEmail() {
+      return get(/databases/$(database)/documents/systemConfig/bootstrap).data.superAdminEmail;
+    }
+
+    function isBootstrapSuperAdminCreate(userId) {
+      return isOwner(userId)
+        && bootstrapConfigExists()
+        && request.auth.token.email == bootstrapEmail()
+        && request.resource.data.role == 'super_admin';
+    }
+
+    function isVendorActivationProfileCreate(userId) {
+      return isOwner(userId)
+        && request.resource.data.role == 'user'
+        && request.resource.data.isActive == true
+        && request.resource.data.isSuspended == false
+        && request.resource.data.activationTokenId is string
+        && request.resource.data.activatedAt is timestamp
+        && request.resource.data.activationExpiresAt is timestamp;
+    }
+
+    function isActivationTokenConsume(tokenCode) {
+      return signedIn()
+        && resource.data.isUsed == false
+        && request.resource.data.isUsed == true
+        && request.resource.data.usedById == request.auth.uid
+        && request.resource.data.usedAt is timestamp
+        && request.resource.data.code == resource.data.code
+        && request.resource.data.durationType == resource.data.durationType
+        && request.resource.data.durationLabel == resource.data.durationLabel
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && request.resource.data.createdById == resource.data.createdById
+        && request.resource.data.createdByEmail == resource.data.createdByEmail
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isUsed',
+          'usedById',
+          'usedAt',
+          'updatedAt'
+        ]);
+    }
+
+    function isVendorActivationRenewal(userId) {
+      return isOwner(userId)
+        && resource.data.role == 'user'
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.isActive == true
+        && request.resource.data.isSuspended == resource.data.isSuspended
+        && request.resource.data.deletedAt == resource.data.deletedAt
+        && request.resource.data.activationTokenId is string
+        && request.resource.data.activatedAt is timestamp
+        && request.resource.data.activationExpiresAt is timestamp
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isActive',
+          'activatedAt',
+          'activationExpiresAt',
+          'activationTokenId',
+          'updatedAt'
+        ]);
+    }
+
+    function keepsOwner() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isSuperAdmin() || isOwner(userId);
+      allow create: if isBootstrapSuperAdminCreate(userId)
+        || isVendorActivationProfileCreate(userId);
+      allow update: if isSuperAdmin() || isVendorActivationRenewal(userId);
+      allow delete: if false;
+    }
+
+    match /systemConfig/{configId} {
+      allow read: if signedIn();
+      allow create, update, delete: if false;
+    }
+
+    match /activationTokens/{tokenCode} {
+      allow get: if signedIn();
+      allow list: if isSuperAdmin();
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin() || isActivationTokenConsume(tokenCode);
+      allow delete: if false;
+    }
+
+    match /businessProfiles/{profileId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
+    match /bankAccounts/{bankAccountId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
+    match /packageCategories/{categoryId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
+    match /packages/{packageId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
+    match /clients/{clientId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
+    match /invoiceSequences/{sequenceId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /receiptSequences/{sequenceId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if resource.data.isPublic == true || isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /invoiceItems/{itemId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /invoiceEvents/{eventId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /receipts/{receiptId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /agreements/{agreementId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /pricelists/{pricelistId} {
+      allow read: if resource.data.isPublished == true || isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /backupLogs/{backupLogId} {
+      allow read, create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
+    match /auditLogs/{auditLogId} {
+      allow read, create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+  }
+}

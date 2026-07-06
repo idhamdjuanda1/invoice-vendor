@@ -1,0 +1,351 @@
+@import "tailwindcss";
+
+@theme {
+  --color-app-bg: #ffffff;
+  --color-app-text: #111111;
+  --color-app-gold: #c9a227;
+  --color-app-gold-soft: #f4e7b8;
+  --color-app-border: #e5e5e5;
+  --color-app-muted: #f8f8f8;
+  --color-app-danger: #dc2626;
+  --color-app-success: #16a34a;
+  --color-app-warning: #d97706;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background: #ffffff;
+    color: #111111;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  table {
+    max-width: 100%;
+  }
+
+  .print-only {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .mobile-bottom-nav {
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .mobile-bottom-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-bottom-nav > a {
+    scroll-snap-align: center;
+  }
+
+  .print-area {
+    width: 100%;
+  }
+
+  @media (min-width: 768px) {
+    .print-area {
+      min-width: 720px;
+    }
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 3cm 3cm 3cm 4cm;
+  }
+
+  @page invoicePrint {
+    size: A4;
+    margin: 1.2cm;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+    width: auto;
+    min-width: 0;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-card,
+  .print-card * {
+    visibility: visible;
+  }
+
+  aside,
+  header,
+  nav,
+  .no-print,
+  .print-card button,
+  .print-card a {
+    display: none !important;
+  }
+
+  .print-card {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    border: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .print-card-content {
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .print-area {
+    gap: 12px !important;
+    padding: 0 !important;
+    color: #111111 !important;
+    font-size: 10.5px !important;
+    line-height: 1.35 !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .invoice-print-area {
+    page: invoicePrint;
+    display: grid !important;
+    gap: 5px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    width: 100% !important;
+    max-width: 178mm !important;
+    min-width: 0 !important;
+    font-size: 8.4px !important;
+    line-height: 1.18 !important;
+  }
+
+  .invoice-print-area .print-header {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    align-items: start !important;
+    gap: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .invoice-print-area .print-header h1 {
+    font-size: 17px !important;
+    line-height: 1 !important;
+  }
+
+  .invoice-print-area .print-header h2 {
+    font-size: 13px !important;
+    line-height: 1.05 !important;
+  }
+
+  .invoice-print-area .print-logo {
+    max-height: 34px !important;
+    max-width: 78px !important;
+  }
+
+  .invoice-print-area .print-meta {
+    display: grid !important;
+    gap: 5px !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .invoice-print-area .print-bottom {
+    display: grid !important;
+    gap: 6px !important;
+    grid-template-columns: 1fr 54mm !important;
+  }
+
+  .invoice-print-area .print-footer {
+    padding-top: 6px !important;
+  }
+
+  .invoice-print-area .p-4 {
+    padding: 5px !important;
+  }
+
+  .invoice-print-area .mt-4 {
+    margin-top: 4px !important;
+  }
+
+  .invoice-print-area .mt-3,
+  .invoice-print-area .mt-2 {
+    margin-top: 2px !important;
+  }
+
+  .invoice-print-area .print-items {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    text-align: center !important;
+    table-layout: fixed !important;
+  }
+
+  .invoice-print-area .print-items th,
+  .invoice-print-area .print-items td {
+    padding: 3px 4px !important;
+    vertical-align: middle !important;
+  }
+
+  .invoice-print-area .print-items th:first-child,
+  .invoice-print-area .print-items td:first-child {
+    text-align: center !important;
+  }
+
+  .invoice-print-area .print-items p {
+    line-height: 1.12 !important;
+  }
+
+  .print-header {
+    gap: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .print-header h1 {
+    font-size: 24px !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  .print-header h2 {
+    font-size: 18px !important;
+  }
+
+  .print-header img {
+    max-height: 58px !important;
+    max-width: 120px !important;
+  }
+
+  .print-logo {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+  }
+
+  .print-meta {
+    gap: 8px !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .print-bottom {
+    gap: 10px !important;
+    grid-template-columns: 1fr 68mm !important;
+  }
+
+  .print-items {
+    min-width: 0 !important;
+    width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  .print-items th,
+  .print-items td {
+    padding: 6px 8px !important;
+  }
+
+  .print-footer,
+  .print-terms,
+  .print-meta,
+  .print-bottom,
+  .print-header {
+    page-break-inside: avoid;
+  }
+
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .rounded-md,
+  .rounded-lg {
+    border-radius: 4px !important;
+  }
+
+  .p-4 {
+    padding: 10px !important;
+  }
+
+  .mt-5 {
+    margin-top: 10px !important;
+  }
+
+  .mt-4 {
+    margin-top: 8px !important;
+  }
+
+  .mt-3 {
+    margin-top: 6px !important;
+  }
+
+  .mt-2 {
+    margin-top: 4px !important;
+  }
+
+  .py-3 {
+    padding-bottom: 6px !important;
+    padding-top: 6px !important;
+  }
+
+  .px-3 {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .text-3xl,
+  .text-2xl,
+  .text-lg,
+  .text-base {
+    line-height: 1.2 !important;
+  }
+
+  .bg-app-muted {
+    background: #f5f5f5 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .bg-app-gold-soft {
+    background: #f4e7b8 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  button,
+  a[href] {
+    box-shadow: none !important;
+  }
+}

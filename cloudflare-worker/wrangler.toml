@@ -1,0 +1,14 @@
+name = "invoice-vendor-r2"
+main = "src/index.ts"
+compatibility_date = "2026-07-05"
+workers_dev = true
+preview_urls = false
+
+[[r2_buckets]]
+binding = "INVOICE_FILES"
+bucket_name = "invoice-files"
+
+[vars]
+FIREBASE_PROJECT_ID = "kuitansi---invoice"
+FIREBASE_API_KEY = "AIzaSyBU6yUPYLsaUyM-WjMW1y9Jr5ABJMt6jUI"
+ALLOWED_ORIGINS = "https://invoice-vendor.web.app,http://localhost:5173,http://127.0.0.1:5173"
