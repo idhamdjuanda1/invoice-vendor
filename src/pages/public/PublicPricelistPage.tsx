@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SyntheticEvent } from 'react'
-import { Check, Loader2, MapPin, MessageCircle, Percent, X } from 'lucide-react'
+import { Check, Loader2, MapPin, MessageCircle, Percent, Store, X } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { formatCurrency } from '../../lib/formatters/currency'
@@ -80,19 +80,6 @@ function formatPackageDetails(description: string | null) {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-}
-
-function getVendorInitials(value: string) {
-  const initials = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase()
-
-  return initials || 'IV'
 }
 
 export function PublicPricelistPage() {
@@ -228,16 +215,16 @@ export function PublicPricelistPage() {
         <div className="mx-auto grid max-w-6xl gap-7 px-5 py-8 md:grid-cols-[minmax(0,1fr)_380px] md:items-center md:px-8 md:py-10">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-app-border bg-[#201b14] text-sm font-black tracking-wide text-app-gold">
+              <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-app-border bg-white text-app-gold shadow-sm">
                 {pricelist.vendorLogoUrl && !logoFailed ? (
                   <img
                     alt={pricelist.vendorName}
-                    className="size-full bg-white object-contain p-1"
+                    className="size-full bg-white object-contain p-1.5"
                     onError={() => setLogoFailed(true)}
                     src={pricelist.vendorLogoUrl}
                   />
                 ) : (
-                  getVendorInitials(pricelist.vendorName)
+                  <Store size={22} />
                 )}
               </div>
               <div>
