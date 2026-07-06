@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SyntheticEvent } from 'react'
-import { Building2, Check, Loader2, MapPin, MessageCircle, Percent, X } from 'lucide-react'
+import { Check, Loader2, MapPin, MessageCircle, Percent, X } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { formatCurrency } from '../../lib/formatters/currency'
@@ -82,6 +82,19 @@ function formatPackageDetails(description: string | null) {
     .filter(Boolean)
 }
 
+function getVendorInitials(value: string) {
+  const initials = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase()
+
+  return initials || 'IV'
+}
+
 export function PublicPricelistPage() {
   const { slug } = useParams()
   const [pricelist, setPricelist] = useState<PricelistRecord | null>(null)
@@ -90,6 +103,7 @@ export function PublicPricelistPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [showDiscountModal, setShowDiscountModal] = useState(false)
   const [imageOrientations, setImageOrientations] = useState<Record<string, 'portrait' | 'landscape'>>({})
+  const [logoFailed, setLogoFailed] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -109,6 +123,7 @@ export function PublicPricelistPage() {
         if (!isMounted) return
 
         setPricelist(loadedPricelist)
+        setLogoFailed(false)
         setShowDiscountModal(Boolean(loadedPricelist?.discountIsActive))
         document.title = loadedPricelist ? `${loadedPricelist.title} - ${loadedPricelist.vendorName}` : 'Pricelist Invoice Vendor'
         if (!loadedPricelist) setErrorMessage('Pricelist tidak ditemukan atau sudah tidak aktif.')
@@ -213,11 +228,16 @@ export function PublicPricelistPage() {
         <div className="mx-auto grid max-w-6xl gap-7 px-5 py-8 md:grid-cols-[minmax(0,1fr)_380px] md:items-center md:px-8 md:py-10">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-app-border bg-app-muted">
-                {pricelist.vendorLogoUrl ? (
-                  <img alt={pricelist.vendorName} className="size-full object-contain" src={pricelist.vendorLogoUrl} />
+              <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-app-border bg-[#201b14] text-sm font-black tracking-wide text-app-gold">
+                {pricelist.vendorLogoUrl && !logoFailed ? (
+                  <img
+                    alt={pricelist.vendorName}
+                    className="size-full bg-white object-contain p-1"
+                    onError={() => setLogoFailed(true)}
+                    src={pricelist.vendorLogoUrl}
+                  />
                 ) : (
-                  <Building2 className="text-neutral-400" size={24} />
+                  getVendorInitials(pricelist.vendorName)
                 )}
               </div>
               <div>
@@ -230,7 +250,8 @@ export function PublicPricelistPage() {
                 ) : null}
               </div>
             </div>
-            <h1 className="mt-9 max-w-3xl font-serif text-4xl font-semibold leading-tight tracking-normal text-[#201b14] md:text-6xl">
+            <p className="mt-9 text-xs font-bold uppercase tracking-[0.24em] text-app-gold">Pricelist</p>
+            <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-tight tracking-normal text-[#201b14] md:text-6xl">
               {pricelist.title}
             </h1>
             {pricelist.tagline ? (
