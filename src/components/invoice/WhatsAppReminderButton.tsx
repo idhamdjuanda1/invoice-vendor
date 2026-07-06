@@ -37,6 +37,26 @@ function buildReminderMessage(invoice: InvoiceRecord) {
   ].join('\n')
 }
 
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent)
+}
+
+function openWhatsApp(phoneNumber: string, message: string) {
+  const encodedMessage = encodeURIComponent(message)
+  const appUrl = `whatsapp://send?phone=${phoneNumber}&text=${encodedMessage}`
+  const webUrl = `https://api.whatsapp.com/send?phone=${phoneNumber}&text=${encodedMessage}`
+
+  if (isMobileDevice()) {
+    window.location.href = appUrl
+    window.setTimeout(() => {
+      window.location.href = webUrl
+    }, 1200)
+    return
+  }
+
+  window.open(webUrl, '_blank', 'noopener,noreferrer')
+}
+
 export function WhatsAppReminderButton({ invoice, className, variant = 'secondary' }: WhatsAppReminderButtonProps) {
   function handleClick() {
     const phoneNumber = normalizeWhatsAppNumber(invoice.clientWhatsappNumber)
@@ -46,8 +66,7 @@ export function WhatsAppReminderButton({ invoice, className, variant = 'secondar
       return
     }
 
-    const message = encodeURIComponent(buildReminderMessage(invoice))
-    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank', 'noopener,noreferrer')
+    openWhatsApp(phoneNumber, buildReminderMessage(invoice))
   }
 
   return (
