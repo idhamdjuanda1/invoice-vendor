@@ -19,7 +19,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../features/auth/useAuth'
 import { cn } from '../../lib/utils/cn'
-import { getBusinessProfile } from '../../services/firestore/businessProfiles'
+import { getBusinessProfile, syncPricelistsWithBusinessProfile } from '../../services/firestore/businessProfiles'
 import type { BusinessProfile } from '../../types/domain'
 
 type DashboardLayoutProps = {
@@ -62,6 +62,11 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
       try {
         const loadedProfile = await getBusinessProfile(profile.uid)
         if (isMounted) setBusinessProfile(loadedProfile)
+        if (loadedProfile) {
+          void syncPricelistsWithBusinessProfile(profile.uid).catch((error) => {
+            console.error('Failed to sync public vendor profile', error)
+          })
+        }
       } catch {
         if (isMounted) setBusinessProfile(null)
       }

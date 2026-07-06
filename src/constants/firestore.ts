@@ -2,6 +2,7 @@ export const firestoreCollections = {
   users: 'users',
   activationTokens: 'activationTokens',
   businessProfiles: 'businessProfiles',
+  publicVendorProfiles: 'publicVendorProfiles',
   bankAccounts: 'bankAccounts',
   packageCategories: 'packageCategories',
   packages: 'packages',

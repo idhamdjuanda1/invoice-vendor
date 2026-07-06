@@ -15,6 +15,15 @@ export type BusinessProfileInput = {
   signatureUrl?: string | null
 }
 
+export type PublicVendorProfile = {
+  id: string
+  userId: string
+  vendorName: string
+  whatsappNumber: string | null
+  address: string | null
+  logoUrl: string | null
+}
+
 function makeVendorCode(vendorName: string) {
   const words = vendorName
     .trim()
@@ -60,6 +69,37 @@ function buildBusinessProfile(id: string, data: Record<string, unknown>): Busine
   }
 }
 
+function buildPublicVendorProfile(id: string, data: Record<string, unknown>): PublicVendorProfile {
+  return {
+    id,
+    userId: String(data.userId ?? id),
+    vendorName: String(data.vendorName ?? ''),
+    whatsappNumber: typeof data.whatsappNumber === 'string' ? data.whatsappNumber : null,
+    address: typeof data.address === 'string' ? data.address : null,
+    logoUrl: typeof data.logoUrl === 'string' ? data.logoUrl : null,
+  }
+}
+
+async function savePublicVendorProfile(userId: string, profileData: {
+  vendorName: string
+  whatsappNumber: string
+  address: string
+  logoUrl: string | null
+}) {
+  await setDoc(
+    doc(firestore, firestoreCollections.publicVendorProfiles, userId),
+    {
+      userId,
+      vendorName: profileData.vendorName || 'Vendor',
+      whatsappNumber: normalizeWhatsAppNumber(profileData.whatsappNumber),
+      address: profileData.address || null,
+      logoUrl: profileData.logoUrl,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
 async function syncPricelistVendorSnapshot(userId: string, profileData: {
   vendorName: string
   whatsappNumber: string
@@ -99,9 +139,23 @@ export async function getBusinessProfile(userId: string) {
   return buildBusinessProfile(snapshot.id, snapshot.data())
 }
 
+export async function getPublicVendorProfile(userId: string) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.publicVendorProfiles, userId))
+  if (!snapshot.exists()) return null
+
+  return buildPublicVendorProfile(snapshot.id, snapshot.data())
+}
+
 export async function syncPricelistsWithBusinessProfile(userId: string) {
   const businessProfile = await getBusinessProfile(userId)
   if (!businessProfile) return
+
+  await savePublicVendorProfile(userId, {
+    vendorName: businessProfile.vendorName,
+    whatsappNumber: businessProfile.whatsappNumber,
+    address: businessProfile.address,
+    logoUrl: businessProfile.logoUrl,
+  })
 
   await syncPricelistVendorSnapshot(userId, {
     vendorName: businessProfile.vendorName,
@@ -145,6 +199,13 @@ export async function saveBusinessProfile(userId: string, input: BusinessProfile
     profileData,
     { merge: true },
   )
+
+  await savePublicVendorProfile(userId, {
+    vendorName: profileData.vendorName,
+    whatsappNumber: profileData.whatsappNumber,
+    address: profileData.address,
+    logoUrl: profileData.logoUrl,
+  })
 
   try {
     await syncPricelistVendorSnapshot(userId, {

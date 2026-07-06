@@ -125,6 +125,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /publicVendorProfiles/{profileId} {
+      allow read: if true;
+      allow create: if isSuperAdmin()
+        || (signedIn() && profileId == request.auth.uid && isOwner(request.resource.data.userId));
+      allow update: if isSuperAdmin()
+        || (signedIn() && profileId == request.auth.uid && isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
     match /bankAccounts/{bankAccountId} {
       allow read: if isSuperAdmin() || isOwner(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);

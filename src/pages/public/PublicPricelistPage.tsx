@@ -4,6 +4,7 @@ import { Check, Loader2, MapPin, MessageCircle, Percent, Store, X } from 'lucide
 import { useParams } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { formatCurrency } from '../../lib/formatters/currency'
+import { getPublicVendorProfile } from '../../services/firestore/businessProfiles'
 import { getPublishedPricelistBySlug } from '../../services/firestore/pricelists'
 import type { PricelistPackageItem, PricelistRecord } from '../../types/domain'
 
@@ -109,10 +110,30 @@ export function PublicPricelistPage() {
         const loadedPricelist = await getPublishedPricelistBySlug(slug)
         if (!isMounted) return
 
-        setPricelist(loadedPricelist)
+        if (loadedPricelist) {
+          const publicVendorProfile = await getPublicVendorProfile(loadedPricelist.userId).catch((error) => {
+            console.error('Failed to load public vendor profile', error)
+            return null
+          })
+
+          if (!isMounted) return
+
+          const displayPricelist = {
+            ...loadedPricelist,
+            vendorName: publicVendorProfile?.vendorName || loadedPricelist.vendorName,
+            vendorWhatsappNumber: publicVendorProfile?.whatsappNumber ?? loadedPricelist.vendorWhatsappNumber,
+            vendorAddress: publicVendorProfile?.address ?? loadedPricelist.vendorAddress,
+            vendorLogoUrl: publicVendorProfile?.logoUrl ?? loadedPricelist.vendorLogoUrl,
+          }
+
+          setPricelist(displayPricelist)
+          document.title = `${displayPricelist.title} - ${displayPricelist.vendorName}`
+        } else {
+          setPricelist(null)
+          document.title = 'Pricelist Invoice Vendor'
+        }
         setLogoFailed(false)
         setShowDiscountModal(Boolean(loadedPricelist?.discountIsActive))
-        document.title = loadedPricelist ? `${loadedPricelist.title} - ${loadedPricelist.vendorName}` : 'Pricelist Invoice Vendor'
         if (!loadedPricelist) setErrorMessage('Pricelist tidak ditemukan atau sudah tidak aktif.')
       } catch (error) {
         console.error('Failed to load public pricelist', error)
