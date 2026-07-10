@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, BarChart3, Download, Edit3, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
@@ -318,7 +318,9 @@ function downloadCsv(filename: string, rows: Array<Record<string, string | numbe
 export function AccountingDashboardPage() {
   const { profile } = useAuth()
   const ownerUserId = profile?.role === 'user' ? profile.uid : profile?.vendorId ?? ''
-  const [activeTab, setActiveTab] = useState<AccountingTab>('dashboard')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab as AccountingTab : 'dashboard'
   const [categories, setCategories] = useState<AccountingCategoryRecord[]>([])
   const [transactions, setTransactions] = useState<AccountingTransactionRecord[]>([])
   const [invoicePayments, setInvoicePayments] = useState<PaymentRecord[]>([])
@@ -778,7 +780,7 @@ export function AccountingDashboardPage() {
       amount: formatMoneyInput(transaction.amount),
       description: transaction.description,
     })
-    setActiveTab(transaction.type === 'EXPENSE' ? 'expense' : 'income')
+    setSearchParams({ tab: transaction.type === 'EXPENSE' ? 'expense' : 'income' })
     setMessage('Mode edit transaksi aktif. Ubah data lalu klik Simpan Perubahan.')
     setErrorMessage('')
   }
@@ -871,28 +873,10 @@ export function AccountingDashboardPage() {
       {message ? <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div> : null}
       {errorMessage ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div> : null}
 
-      <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start">
-        <aside className="hidden rounded-md border border-app-border bg-white p-2 lg:sticky lg:top-4 lg:block">
-          <p className="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">Menu Accounting</p>
-          <div className="grid gap-1">
-            {tabs.map((tab) => (
-              <button
-                className={`rounded-md px-3 py-2 text-left text-sm font-semibold ${activeTab === tab.id ? 'bg-app-gold-soft text-app-text' : 'text-neutral-500 hover:bg-app-muted'}`}
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <div className="min-w-0 pb-20 lg:pb-0">
-          {isLoading ? (
-            <Card><CardContent className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 className="animate-spin" size={16} /> Memuat accounting...</CardContent></Card>
-          ) : (
-            <>
+      {isLoading ? (
+        <Card><CardContent className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 className="animate-spin" size={16} /> Memuat accounting...</CardContent></Card>
+      ) : (
+        <>
           {activeTab === 'dashboard' ? (
             <div className="grid gap-5">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1443,23 +1427,8 @@ export function AccountingDashboardPage() {
               </CardContent>
             </Card>
           ) : null}
-            </>
-          )}
-        </div>
-      </div>
-
-      <nav className="fixed inset-x-0 bottom-[4.75rem] z-20 flex gap-2 overflow-x-auto border-t border-app-border bg-white px-3 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.05)] lg:hidden">
-        {tabs.map((tab) => (
-          <button
-            className={`flex min-w-24 flex-col items-center justify-center rounded-md px-3 py-2 text-center text-[11px] font-semibold ${activeTab === tab.id ? 'bg-app-gold-soft text-app-text' : 'text-neutral-500'}`}
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+        </>
+      )}
 
       <Card>
         <CardHeader><h2 className="text-base font-semibold">Kategori Transaksi</h2></CardHeader>

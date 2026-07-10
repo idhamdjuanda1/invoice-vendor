@@ -18,7 +18,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../features/auth/useAuth'
 import { cn } from '../../lib/utils/cn'
@@ -59,12 +59,28 @@ const freelanceNav = [
 ]
 
 const accountingNav = [
-  { label: 'Accounting', href: '/accounting', icon: Calculator },
+  { label: 'Dashboard', href: '/accounting?tab=dashboard', icon: Home },
+  { label: 'Kas & Bank', href: '/accounting?tab=cash-bank', icon: Banknote },
+  { label: 'Pemasukan', href: '/accounting?tab=income', icon: FileText },
+  { label: 'Pengeluaran', href: '/accounting?tab=expense', icon: Receipt },
+  { label: 'Aset', href: '/accounting?tab=assets', icon: Boxes },
+  { label: 'Hutang', href: '/accounting?tab=payable', icon: FileText },
+  { label: 'Piutang', href: '/accounting?tab=receivable', icon: Banknote },
+  { label: 'Jurnal Umum', href: '/accounting?tab=journal', icon: FileText },
+  { label: 'Buku Besar', href: '/accounting?tab=ledger', icon: FileBarChart },
+  { label: 'Neraca Saldo', href: '/accounting?tab=trial-balance', icon: FileBarChart },
+  { label: 'Laba Rugi', href: '/accounting?tab=profit-loss', icon: FileBarChart },
+  { label: 'Neraca', href: '/accounting?tab=balance-sheet', icon: FileBarChart },
+  { label: 'Arus Kas', href: '/accounting?tab=cash-flow', icon: Banknote },
+  { label: 'Ekuitas / Modal', href: '/accounting?tab=equity', icon: Calculator },
+  { label: 'Pajak', href: '/accounting?tab=tax', icon: FileText },
+  { label: 'Laporan', href: '/accounting?tab=reports', icon: FileBarChart },
 ]
 
 export function DashboardLayout({ role }: DashboardLayoutProps) {
   const navigation = role === 'admin' ? adminNav : role === 'freelance' ? freelanceNav : role === 'accounting' ? accountingNav : vendorNav
   const { logout, profile } = useAuth()
+  const location = useLocation()
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null)
 
   useEffect(() => {
@@ -99,6 +115,12 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
 
   const displayName = ['vendor', 'accounting'].includes(role) ? businessProfile?.vendorName || profile?.name || 'Vendor' : profile?.name || (role === 'admin' ? 'Super Admin' : 'Freelance')
   const displayEmail = businessProfile?.email || profile?.email || ''
+  const currentHref = `${location.pathname}${location.search}`
+
+  function isNavigationActive(href: string) {
+    if (href.includes('?')) return currentHref === href || (href === '/accounting?tab=dashboard' && currentHref === '/accounting')
+    return location.pathname === href || (href !== '/dashboard' && location.pathname.startsWith(`${href}/`))
+  }
 
   return (
     <div className="min-h-screen bg-app-muted">
@@ -110,10 +132,10 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
         <nav className="mt-8 grid gap-1">
           {navigation.map((item) => (
             <NavLink
-              className={({ isActive }) =>
+              className={() =>
                 cn(
                   'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-neutral-600 transition hover:bg-app-muted hover:text-app-text',
-                  isActive && 'bg-app-gold-soft text-app-text',
+                  isNavigationActive(item.href) && 'bg-app-gold-soft text-app-text',
                 )
               }
               key={item.href}
@@ -168,10 +190,10 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
       <nav className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-20 flex gap-2 overflow-x-auto border-t border-app-border bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] lg:hidden">
         {navigation.map((item) => (
           <NavLink
-            className={({ isActive }) =>
+            className={() =>
               cn(
                 'flex min-w-20 flex-col items-center gap-1 rounded-md px-3 py-2.5 text-[11px] font-medium text-neutral-500',
-                isActive && 'bg-app-gold-soft text-app-text',
+                isNavigationActive(item.href) && 'bg-app-gold-soft text-app-text',
               )
             }
             key={item.href}
