@@ -364,7 +364,7 @@ service cloud.firestore {
     }
 
     match /payments/{paymentId} {
-      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId) || isAccountingForVendor(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || isOwner(resource.data.userId);
       allow delete: if false;

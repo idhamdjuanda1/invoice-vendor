@@ -16,11 +16,14 @@ import {
   createAccountingAsset,
   createAccountingCategory,
   createAccountingTransaction,
+  createOpeningBalanceTransaction,
   listAccountingAssets,
   listAccountingTransactions,
   seedAccountingCategories,
   updateAccountingCategory,
 } from '../../services/firestore/accounting'
+import { listInvoices } from '../../services/firestore/invoices'
+import { listAllPayments } from '../../services/firestore/payments'
 import type {
   AccountingAccountType,
   AccountingAssetCondition,
@@ -28,6 +31,9 @@ import type {
   AccountingCategoryRecord,
   AccountingTransactionRecord,
   AccountingTransactionType,
+  InvoiceRecord,
+  PaymentMethod,
+  PaymentRecord,
 } from '../../types/domain'
 
 type AccountingTab =
@@ -69,6 +75,13 @@ const tabs: Array<{ id: AccountingTab; label: string }> = [
 
 const today = new Date().toISOString().slice(0, 10)
 
+const paymentMethodAccountMap: Record<PaymentMethod, AccountingAccountType> = {
+  TRANSFER_BANK: 'BANK',
+  QRIS: 'BANK',
+  CASH: 'CASH',
+  OTHER: 'BANK',
+}
+
 function downloadCsv(filename: string, rows: Array<Record<string, string | number>>) {
   const headers = Object.keys(rows[0] ?? { Data: '' })
   const csv = [
@@ -89,6 +102,8 @@ export function AccountingDashboardPage() {
   const [activeTab, setActiveTab] = useState<AccountingTab>('dashboard')
   const [categories, setCategories] = useState<AccountingCategoryRecord[]>([])
   const [transactions, setTransactions] = useState<AccountingTransactionRecord[]>([])
+  const [invoicePayments, setInvoicePayments] = useState<PaymentRecord[]>([])
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([])
   const [assets, setAssets] = useState<AccountingAssetRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -102,6 +117,12 @@ export function AccountingDashboardPage() {
     categoryId: '',
     amount: '',
     description: '',
+  })
+  const [balanceInput, setBalanceInput] = useState({
+    date: today,
+    accountType: 'BANK' as AccountingAccountType,
+    amount: '',
+    description: 'Saldo awal',
   })
   const [assetInput, setAssetInput] = useState({
     name: '',
@@ -119,13 +140,17 @@ export function AccountingDashboardPage() {
 
     try {
       const loadedCategories = await seedAccountingCategories(ownerUserId)
-      const [loadedTransactions, loadedAssets] = await Promise.all([
+      const [loadedTransactions, loadedAssets, loadedPayments, loadedInvoices] = await Promise.all([
         listAccountingTransactions(ownerUserId),
         listAccountingAssets(ownerUserId),
+        listAllPayments(ownerUserId),
+        listInvoices(ownerUserId),
       ])
       setCategories(loadedCategories)
       setTransactions(loadedTransactions)
       setAssets(loadedAssets)
+      setInvoicePayments(loadedPayments)
+      setInvoices(loadedInvoices)
     } catch (error) {
       console.error('Failed to load accounting module', error)
       setErrorMessage('Modul accounting belum bisa dimuat.')
@@ -138,9 +163,35 @@ export function AccountingDashboardPage() {
     void loadAccounting()
   }, [loadAccounting])
 
-  const summary = useMemo(() => buildAccountingSummary(transactions, assets), [assets, transactions])
-  const filteredTransactions = transactions.filter((transaction) => {
-    if (activeTab === 'income') return transaction.type === 'INCOME'
+  const invoiceById = useMemo(() => new Map(invoices.map((invoice) => [invoice.id, invoice])), [invoices])
+  const autoPaymentTransactions = useMemo<AccountingTransactionRecord[]>(() => invoicePayments.map((payment) => {
+    const invoice = invoiceById.get(payment.invoiceId)
+    return {
+      id: `payment-${payment.id}`,
+      userId: payment.userId,
+      type: 'INCOME',
+      date: payment.paymentDate,
+      accountType: paymentMethodAccountMap[payment.paymentMethod],
+      categoryId: null,
+      categoryName: 'Pelunasan Invoice',
+      amount: payment.amount,
+      description: `Pembayaran invoice ${invoice?.invoiceNumber ?? ''}${invoice?.clientName ? ` - ${invoice.clientName}` : ''}`.trim(),
+      referenceType: 'INVOICE_PAYMENT',
+      referenceId: payment.id,
+      createdById: payment.userId,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
+      deletedAt: null,
+    }
+  }), [invoiceById, invoicePayments])
+  const allTransactions = useMemo(() => [...autoPaymentTransactions, ...transactions].sort((a, b) => {
+    const aDate = toInputDate(a.date)
+    const bDate = toInputDate(b.date)
+    return bDate.localeCompare(aDate)
+  }), [autoPaymentTransactions, transactions])
+  const summary = useMemo(() => buildAccountingSummary(allTransactions, assets), [allTransactions, assets])
+  const filteredTransactions = allTransactions.filter((transaction) => {
+    if (activeTab === 'income') return transaction.type === 'INCOME' && transaction.referenceType !== 'OPENING_BALANCE'
     if (activeTab === 'expense') return transaction.type === 'EXPENSE'
     if (activeTab === 'cash-bank') return true
     return true
@@ -148,7 +199,7 @@ export function AccountingDashboardPage() {
   const selectedCategories = categories.filter((category) => category.type === transactionInput.type)
   const cashFlowData = useMemo(() => {
     const months = new Map<string, { month: string; income: number; expense: number }>()
-    transactions.forEach((transaction) => {
+    allTransactions.forEach((transaction) => {
       const date = toInputDate(transaction.date)
       const key = date ? date.slice(0, 7) : 'Tanpa Tanggal'
       const item = months.get(key) ?? { month: key, income: 0, expense: 0 }
@@ -157,7 +208,7 @@ export function AccountingDashboardPage() {
       months.set(key, item)
     })
     return Array.from(months.values()).slice(0, 12).reverse()
-  }, [transactions])
+  }, [allTransactions])
 
   async function handleCreateCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -201,6 +252,30 @@ export function AccountingDashboardPage() {
     } catch (error) {
       console.error('Failed to create accounting transaction', error)
       setErrorMessage('Transaksi belum bisa disimpan.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleCreateOpeningBalance(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!ownerUserId || !profile) return
+    setIsSaving(true)
+    setMessage('')
+    setErrorMessage('')
+    try {
+      await createOpeningBalanceTransaction(ownerUserId, profile.uid, {
+        date: balanceInput.date,
+        accountType: balanceInput.accountType,
+        amount: Number(balanceInput.amount),
+        description: balanceInput.description,
+      })
+      setBalanceInput((current) => ({ ...current, amount: '', description: 'Saldo awal' }))
+      await loadAccounting()
+      setMessage(`Saldo ${accountingAccountTypeLabels[balanceInput.accountType]} berhasil ditambahkan.`)
+    } catch (error) {
+      console.error('Failed to add opening balance', error)
+      setErrorMessage('Saldo manual belum bisa ditambahkan.')
     } finally {
       setIsSaving(false)
     }
@@ -250,13 +325,14 @@ export function AccountingDashboardPage() {
   }
 
   function exportTransactions() {
-    downloadCsv('laporan-accounting-transaksi', transactions.map((transaction) => ({
+    downloadCsv('laporan-accounting-transaksi', allTransactions.map((transaction) => ({
       Tanggal: formatDisplayDate(transaction.date),
       Jenis: accountingTransactionTypeLabels[transaction.type],
       Akun: accountingAccountTypeLabels[transaction.accountType],
       Kategori: transaction.categoryName,
       Nominal: transaction.amount,
       Keterangan: transaction.description,
+      Sumber: transaction.referenceType === 'INVOICE_PAYMENT' ? 'Otomatis Invoice' : transaction.referenceType === 'OPENING_BALANCE' ? 'Saldo Manual' : 'Manual',
     })))
   }
 
@@ -339,7 +415,38 @@ export function AccountingDashboardPage() {
 
           {['cash-bank', 'income', 'expense', 'journal', 'ledger', 'trial-balance', 'profit-loss', 'balance-sheet', 'cash-flow', 'equity', 'reports'].includes(activeTab) ? (
             <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
-              {['cash-bank', 'income', 'expense'].includes(activeTab) ? (
+              {activeTab === 'cash-bank' ? (
+                <Card>
+                  <CardHeader><h2 className="text-base font-semibold">Tambah Saldo Kas/Bank</h2></CardHeader>
+                  <CardContent>
+                    <form className="grid gap-4" onSubmit={handleCreateOpeningBalance}>
+                      <Input label="Tanggal" type="date" value={balanceInput.date} onChange={(event) => setBalanceInput((current) => ({ ...current, date: event.target.value }))} />
+                      <label className="grid gap-2 text-sm font-medium">
+                        Simpan ke
+                        <select className="min-h-12 rounded-md border border-app-border px-3" value={balanceInput.accountType} onChange={(event) => setBalanceInput((current) => ({ ...current, accountType: event.target.value as AccountingAccountType }))}>
+                          <option value="CASH">Kas</option>
+                          <option value="BANK">Bank</option>
+                        </select>
+                      </label>
+                      <Input label="Nominal" min="0" type="number" value={balanceInput.amount} onChange={(event) => setBalanceInput((current) => ({ ...current, amount: event.target.value }))} />
+                      <Input label="Keterangan" value={balanceInput.description} onChange={(event) => setBalanceInput((current) => ({ ...current, description: event.target.value }))} />
+                      <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>Tambah Saldo</Button>
+                    </form>
+                    <div className="mt-5 grid gap-3">
+                      <div className="rounded-md bg-app-muted p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Saldo Kas</p>
+                        <p className="mt-1 text-lg font-black">{formatCurrency(summary.cashBalance)}</p>
+                      </div>
+                      <div className="rounded-md bg-app-muted p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Saldo Bank</p>
+                        <p className="mt-1 text-lg font-black">{formatCurrency(summary.bankBalance)}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {['income', 'expense'].includes(activeTab) ? (
                 <Card>
                   <CardHeader><h2 className="text-base font-semibold">Tambah Transaksi</h2></CardHeader>
                   <CardContent>
@@ -377,7 +484,7 @@ export function AccountingDashboardPage() {
               <Card className={['cash-bank', 'income', 'expense'].includes(activeTab) ? '' : 'xl:col-span-2'}>
                 <CardHeader>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <h2 className="text-base font-semibold">Transaksi Accounting</h2>
+                    <h2 className="text-base font-semibold">{activeTab === 'cash-bank' ? 'Mutasi Kas & Bank' : 'Transaksi Accounting'}</h2>
                     <div className="flex gap-2">
                       <Button icon={<Download size={16} />} onClick={exportTransactions} type="button" variant="secondary">Excel/CSV</Button>
                       <Button icon={<Download size={16} />} onClick={() => window.print()} type="button" variant="secondary">PDF</Button>
@@ -391,6 +498,9 @@ export function AccountingDashboardPage() {
                         <div>
                           <p className="font-semibold">{transaction.description}</p>
                           <p className="text-sm text-neutral-500">{formatDisplayDate(transaction.date)} - {transaction.categoryName} - {accountingAccountTypeLabels[transaction.accountType]}</p>
+                          <p className="mt-1 text-xs text-neutral-500">
+                            {transaction.referenceType === 'INVOICE_PAYMENT' ? 'Otomatis dari pembayaran invoice' : transaction.referenceType === 'OPENING_BALANCE' ? 'Saldo manual kas/bank' : 'Transaksi manual'}
+                          </p>
                         </div>
                         <p className={`font-bold ${transaction.type === 'INCOME' ? 'text-green-700' : 'text-red-700'}`}>{transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}</p>
                       </div>

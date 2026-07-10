@@ -103,6 +103,23 @@ export async function listPayments(userId: string, invoiceId: string) {
     })
 }
 
+export async function listAllPayments(userId: string) {
+  const paymentsQuery = query(
+    collection(firestore, firestoreCollections.payments),
+    where('userId', '==', userId),
+  )
+  const snapshot = await getDocs(paymentsQuery)
+
+  return snapshot.docs
+    .map((paymentDoc) => buildPaymentRecord(paymentDoc.id, paymentDoc.data()))
+    .filter((payment) => !payment.deletedAt)
+    .sort((a, b) => {
+      const aDate = a.paymentDate instanceof Timestamp ? a.paymentDate.toMillis() : 0
+      const bDate = b.paymentDate instanceof Timestamp ? b.paymentDate.toMillis() : 0
+      return bDate - aDate
+    })
+}
+
 export async function recalculateInvoicePayments(userId: string, invoiceId: string) {
   const invoice = await getInvoiceForPayment(userId, invoiceId)
   const payments = await listPayments(userId, invoiceId)

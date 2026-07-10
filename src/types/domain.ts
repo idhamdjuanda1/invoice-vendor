@@ -150,7 +150,7 @@ export type AccountingTransactionRecord = {
   categoryName: string
   amount: number
   description: string
-  referenceType: 'MANUAL' | 'INVOICE_PAYMENT' | 'ASSET_PURCHASE'
+  referenceType: 'MANUAL' | 'INVOICE_PAYMENT' | 'ASSET_PURCHASE' | 'OPENING_BALANCE'
   referenceId: string | null
   createdById: string
   createdAt: FirestoreDate

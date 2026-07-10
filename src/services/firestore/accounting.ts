@@ -20,6 +20,7 @@ export type AccountingTransactionInput = {
   categoryName: string
   amount: number
   description: string
+  referenceType?: AccountingTransactionRecord['referenceType']
 }
 
 export type AccountingAssetInput = {
@@ -31,7 +32,7 @@ export type AccountingAssetInput = {
   notes: string
 }
 
-export const incomeCategoryDefaults = ['Pelunasan Invoice', 'Pendapatan Lain', 'Pendapatan Jasa', 'Pendapatan Tambahan']
+export const incomeCategoryDefaults = ['Pelunasan Invoice', 'Pendapatan Lain', 'Pendapatan Jasa', 'Pendapatan Tambahan', 'Saldo Awal / Modal']
 
 export const expenseCategoryDefaults = [
   'Biaya Operasional',
@@ -108,7 +109,7 @@ function buildTransaction(id: string, data: Record<string, unknown>): Accounting
     amount: Number(data.amount ?? 0),
     description: String(data.description ?? ''),
     referenceType:
-      data.referenceType === 'INVOICE_PAYMENT' || data.referenceType === 'ASSET_PURCHASE'
+      data.referenceType === 'INVOICE_PAYMENT' || data.referenceType === 'ASSET_PURCHASE' || data.referenceType === 'OPENING_BALANCE'
         ? data.referenceType
         : 'MANUAL',
     referenceId: typeof data.referenceId === 'string' ? data.referenceId : null,
@@ -200,12 +201,30 @@ export async function createAccountingTransaction(userId: string, createdById: s
     categoryName: input.categoryName,
     amount: input.amount,
     description: input.description.trim(),
-    referenceType: 'MANUAL',
+    referenceType: input.referenceType ?? 'MANUAL',
     referenceId: null,
     createdById,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     deletedAt: null,
+  })
+}
+
+export async function createOpeningBalanceTransaction(userId: string, createdById: string, input: {
+  date: string
+  accountType: AccountingAccountType
+  amount: number
+  description: string
+}) {
+  await createAccountingTransaction(userId, createdById, {
+    type: 'INCOME',
+    date: input.date,
+    accountType: input.accountType,
+    categoryId: '',
+    categoryName: 'Saldo Awal / Modal',
+    amount: input.amount,
+    description: input.description || `Penambahan saldo ${accountingAccountTypeLabels[input.accountType]}`,
+    referenceType: 'OPENING_BALANCE',
   })
 }
 
@@ -236,8 +255,9 @@ export async function createAccountingAsset(userId: string, input: AccountingAss
 }
 
 export function buildAccountingSummary(transactions: AccountingTransactionRecord[], assets: AccountingAssetRecord[]) {
-  const income = transactions.filter((transaction) => transaction.type === 'INCOME')
-  const expenses = transactions.filter((transaction) => transaction.type === 'EXPENSE')
+  const operatingTransactions = transactions.filter((transaction) => transaction.referenceType !== 'OPENING_BALANCE')
+  const income = operatingTransactions.filter((transaction) => transaction.type === 'INCOME')
+  const expenses = operatingTransactions.filter((transaction) => transaction.type === 'EXPENSE')
   const monthlyIncome = income.filter((transaction) => isCurrentMonth(transaction.date)).reduce((sum, item) => sum + item.amount, 0)
   const monthlyExpense = expenses.filter((transaction) => isCurrentMonth(transaction.date)).reduce((sum, item) => sum + item.amount, 0)
   const cashBalance = transactions.reduce((sum, item) => {
