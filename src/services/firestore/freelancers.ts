@@ -125,6 +125,34 @@ export async function updateFreelancer(userId: string, freelancerId: string, inp
   })
 }
 
+export async function ensureFreelancerInvite(userId: string, freelancerId: string) {
+  const freelancer = await getFreelancer(userId, freelancerId)
+  if (!freelancer) throw new Error('FREELANCER_NOT_FOUND')
+  if (!freelancer.email.trim()) throw new Error('FREELANCER_EMAIL_REQUIRED')
+  if (freelancer.inviteStatus === 'ACCEPTED') return freelancer
+  if (freelancer.inviteToken) return freelancer
+
+  const inviteToken = makeInviteToken()
+  await updateDoc(doc(firestore, firestoreCollections.freelancers, freelancerId), {
+    userId,
+    inviteToken,
+    inviteStatus: 'PENDING',
+    updatedAt: serverTimestamp(),
+  })
+  await createFreelanceInvite(userId, freelancerId, {
+    fullName: freelancer.fullName,
+    email: freelancer.email,
+    roles: freelancer.roles,
+    token: inviteToken,
+  })
+
+  return {
+    ...freelancer,
+    inviteToken,
+    inviteStatus: 'PENDING' as const,
+  }
+}
+
 type InviteInput = {
   fullName: string
   email: string

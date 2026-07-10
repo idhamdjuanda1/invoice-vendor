@@ -9,6 +9,7 @@ import { env } from '../../config/env'
 import { useAuth } from '../../features/auth/useAuth'
 import {
   createFreelancer,
+  ensureFreelancerInvite,
   freelanceTypeLabels,
   listFreelancers,
   softDeleteFreelancer,
@@ -46,6 +47,7 @@ function getErrorMessage(error: unknown) {
   const messages: Record<string, string> = {
     FREELANCER_NAME_REQUIRED: 'Nama lengkap freelance wajib diisi.',
     FREELANCER_WHATSAPP_REQUIRED: 'Nomor WhatsApp freelance wajib diisi.',
+    FREELANCER_EMAIL_REQUIRED: 'Email freelance wajib diisi untuk mengirim aktivasi.',
     FREELANCER_NOT_FOUND: 'Data freelance tidak ditemukan.',
   }
 
@@ -56,8 +58,8 @@ function buildInviteUrl(token: string | null) {
   return token ? `${env.appUrl.replace(/\/$/, '')}/freelance/activate/${token}` : ''
 }
 
-function buildInviteMailto(freelancer: FreelanceRecord) {
-  const inviteUrl = buildInviteUrl(freelancer.inviteToken)
+function buildInviteMailto(freelancer: Pick<FreelanceRecord, 'email' | 'fullName'>, inviteToken: string | null) {
+  const inviteUrl = buildInviteUrl(inviteToken)
   const subject = 'Aktivasi Akun Freelance Invoice Vendor'
   const body = [
     `Halo ${freelancer.fullName},`,
@@ -79,6 +81,7 @@ export function FreelancersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState('')
+  const [isPreparingInvite, setIsPreparingInvite] = useState('')
   const [message, setMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -164,6 +167,26 @@ export function FreelancersPage() {
       setErrorMessage('Freelance belum bisa dihapus.')
     } finally {
       setIsDeleting('')
+    }
+  }
+
+  async function handleSendInvite(freelancer: FreelanceRecord) {
+    if (!profile?.uid) return
+
+    setIsPreparingInvite(freelancer.id)
+    setMessage('')
+    setErrorMessage('')
+
+    try {
+      const invitedFreelancer = await ensureFreelancerInvite(profile.uid, freelancer.id)
+      await loadFreelancers()
+      window.location.href = buildInviteMailto(invitedFreelancer, invitedFreelancer.inviteToken)
+      setMessage('Email aktivasi sudah dibuka. Silakan kirim dari aplikasi email perangkat ini.')
+    } catch (error) {
+      console.error('Failed to prepare freelancer invite', error)
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setIsPreparingInvite('')
     }
   }
 
@@ -263,20 +286,26 @@ export function FreelancersPage() {
                       </span>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {freelancer.email && freelancer.inviteToken && freelancer.inviteStatus !== 'ACCEPTED' ? (
+                      {freelancer.email && freelancer.inviteStatus !== 'ACCEPTED' ? (
                         <>
-                          <a href={buildInviteMailto(freelancer)}>
-                            <Button type="button" variant="secondary">
-                              Kirim Email Aktivasi
-                            </Button>
-                          </a>
                           <Button
+                            disabled={isPreparingInvite === freelancer.id}
+                            icon={isPreparingInvite === freelancer.id ? <Loader2 className="animate-spin" size={15} /> : undefined}
                             type="button"
                             variant="secondary"
-                            onClick={() => void navigator.clipboard?.writeText(buildInviteUrl(freelancer.inviteToken))}
+                            onClick={() => void handleSendInvite(freelancer)}
                           >
-                            Copy Link Aktivasi
+                            {isPreparingInvite === freelancer.id ? 'Menyiapkan...' : 'Kirim Email Aktivasi'}
                           </Button>
+                          {freelancer.inviteToken ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => void navigator.clipboard?.writeText(buildInviteUrl(freelancer.inviteToken))}
+                            >
+                              Copy Link Aktivasi
+                            </Button>
+                          ) : null}
                         </>
                       ) : null}
                       <Button
