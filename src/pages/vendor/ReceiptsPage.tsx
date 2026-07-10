@@ -10,7 +10,7 @@ import { formatDisplayDate } from '../../lib/formatters/date'
 import { paymentMethodLabels } from '../../lib/formatters/invoice'
 import { listInvoices } from '../../services/firestore/invoices'
 import { listPayments, softDeletePayment } from '../../services/firestore/payments'
-import { createReceiptForPayment, listReceipts } from '../../services/firestore/receipts'
+import { createReceiptForPayment, listReceipts, softDeleteReceipt } from '../../services/firestore/receipts'
 import type { ReceiptRecord } from '../../types/domain'
 
 export function ReceiptsPage() {
@@ -71,9 +71,14 @@ export function ReceiptsPage() {
     setSuccessMessage('')
 
     try {
-      await softDeletePayment(profile.uid, receipt.paymentId)
+      try {
+        await softDeletePayment(profile.uid, receipt.paymentId)
+      } catch (paymentError) {
+        console.warn('Payment linked to receipt could not be deleted, deleting receipt only.', paymentError)
+        await softDeleteReceipt(profile.uid, receipt.id)
+      }
       await loadReceipts()
-      setSuccessMessage('Kuitansi dan pembayaran terkait berhasil dihapus. Accounting ikut diperbarui.')
+      setSuccessMessage('Kuitansi berhasil dihapus. Jika pembayaran terkait masih ada, invoice dan accounting ikut diperbarui.')
     } catch (error) {
       console.error('Failed to delete receipt/payment', error)
       setErrorMessage('Kuitansi belum bisa dihapus.')

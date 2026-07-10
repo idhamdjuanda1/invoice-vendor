@@ -209,3 +209,14 @@ export async function softDeleteReceiptForPayment(userId: string, paymentId: str
     updatedAt: serverTimestamp(),
   })
 }
+
+export async function softDeleteReceipt(userId: string, receiptId: string) {
+  const receipt = await getReceipt(userId, receiptId)
+  if (!receipt) throw new Error('RECEIPT_NOT_FOUND')
+
+  await updateDoc(doc(firestore, firestoreCollections.receipts, receipt.id), {
+    userId,
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}

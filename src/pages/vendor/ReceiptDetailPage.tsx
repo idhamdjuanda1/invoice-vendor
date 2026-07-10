@@ -11,7 +11,7 @@ import { paymentMethodLabels } from '../../lib/formatters/invoice'
 import { makePrintTitle } from '../../lib/formatters/printTitle'
 import { generateReceiptPdf } from '../../lib/pdf/documentPdf'
 import { softDeletePayment } from '../../services/firestore/payments'
-import { getReceipt } from '../../services/firestore/receipts'
+import { getReceipt, softDeleteReceipt } from '../../services/firestore/receipts'
 import type { ReceiptRecord } from '../../types/domain'
 
 export function ReceiptDetailPage() {
@@ -63,7 +63,12 @@ export function ReceiptDetailPage() {
     setIsDeleting(true)
     setErrorMessage('')
     try {
-      await softDeletePayment(profile.uid, receipt.paymentId)
+      try {
+        await softDeletePayment(profile.uid, receipt.paymentId)
+      } catch (paymentError) {
+        console.warn('Payment linked to receipt could not be deleted, deleting receipt only.', paymentError)
+        await softDeleteReceipt(profile.uid, receipt.id)
+      }
       navigate('/receipts', { replace: true })
     } catch (error) {
       console.error('Failed to delete receipt/payment', error)
