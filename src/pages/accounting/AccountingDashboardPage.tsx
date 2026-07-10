@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BarChart3, Download, Loader2, Plus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, BarChart3, Download, Loader2, Plus } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
@@ -164,26 +165,72 @@ export function AccountingDashboardPage() {
   }, [loadAccounting])
 
   const invoiceById = useMemo(() => new Map(invoices.map((invoice) => [invoice.id, invoice])), [invoices])
-  const autoPaymentTransactions = useMemo<AccountingTransactionRecord[]>(() => invoicePayments.map((payment) => {
-    const invoice = invoiceById.get(payment.invoiceId)
-    return {
-      id: `payment-${payment.id}`,
-      userId: payment.userId,
-      type: 'INCOME',
-      date: payment.paymentDate,
-      accountType: paymentMethodAccountMap[payment.paymentMethod],
-      categoryId: null,
-      categoryName: 'Pelunasan Invoice',
-      amount: payment.amount,
-      description: `Pembayaran invoice ${invoice?.invoiceNumber ?? ''}${invoice?.clientName ? ` - ${invoice.clientName}` : ''}`.trim(),
-      referenceType: 'INVOICE_PAYMENT',
-      referenceId: payment.id,
-      createdById: payment.userId,
-      createdAt: payment.createdAt,
-      updatedAt: payment.updatedAt,
-      deletedAt: null,
-    }
-  }), [invoiceById, invoicePayments])
+  const autoPaymentTransactions = useMemo<AccountingTransactionRecord[]>(() => {
+    const transactionsFromPayments = invoicePayments.map((payment) => {
+      const invoice = invoiceById.get(payment.invoiceId)
+      return {
+        id: `payment-${payment.id}`,
+        userId: payment.userId,
+        type: 'INCOME' as const,
+        date: payment.paymentDate,
+        accountType: paymentMethodAccountMap[payment.paymentMethod],
+        categoryId: null,
+        categoryName: 'Pelunasan Invoice',
+        amount: payment.amount,
+        description: `Pembayaran invoice ${invoice?.invoiceNumber ?? ''}${invoice?.clientName ? ` - ${invoice.clientName}` : ''}`.trim(),
+        referenceType: 'INVOICE_PAYMENT' as const,
+        referenceId: payment.id,
+        createdById: payment.userId,
+        createdAt: payment.createdAt,
+        updatedAt: payment.updatedAt,
+        deletedAt: null,
+      }
+    })
+    const invoiceIdsWithPaymentRecords = new Set(invoicePayments.map((payment) => payment.invoiceId))
+    const fallbackTransactions = invoices
+      .filter((invoice) => !invoiceIdsWithPaymentRecords.has(invoice.id) && invoice.totalPaid > 0)
+      .flatMap((invoice) => {
+        if (invoice.payments.length > 0) {
+          return invoice.payments.map((payment) => ({
+            id: `invoice-payment-${invoice.id}-${payment.id}`,
+            userId: invoice.userId,
+            type: 'INCOME' as const,
+            date: payment.paymentDate || invoice.invoiceDate,
+            accountType: paymentMethodAccountMap[payment.method],
+            categoryId: null,
+            categoryName: 'Pelunasan Invoice',
+            amount: payment.amount,
+            description: `Pembayaran invoice ${invoice.invoiceNumber} - ${invoice.clientName}`,
+            referenceType: 'INVOICE_PAYMENT' as const,
+            referenceId: payment.id,
+            createdById: invoice.userId,
+            createdAt: invoice.createdAt,
+            updatedAt: invoice.updatedAt,
+            deletedAt: null,
+          }))
+        }
+
+        return [{
+          id: `invoice-total-paid-${invoice.id}`,
+          userId: invoice.userId,
+          type: 'INCOME' as const,
+          date: invoice.invoiceDate,
+          accountType: invoice.paymentMethod ? paymentMethodAccountMap[invoice.paymentMethod] : 'BANK',
+          categoryId: null,
+          categoryName: 'Pelunasan Invoice',
+          amount: invoice.totalPaid,
+          description: `Pembayaran invoice ${invoice.invoiceNumber} - ${invoice.clientName}`,
+          referenceType: 'INVOICE_PAYMENT' as const,
+          referenceId: invoice.id,
+          createdById: invoice.userId,
+          createdAt: invoice.createdAt,
+          updatedAt: invoice.updatedAt,
+          deletedAt: null,
+        }]
+      })
+
+    return [...transactionsFromPayments, ...fallbackTransactions]
+  }, [invoiceById, invoicePayments, invoices])
   const allTransactions = useMemo(() => [...autoPaymentTransactions, ...transactions].sort((a, b) => {
     const aDate = toInputDate(a.date)
     const bDate = toInputDate(b.date)
@@ -352,6 +399,13 @@ export function AccountingDashboardPage() {
       <PageHeader
         title="Accounting"
         description="Modul keuangan terpisah untuk kas, bank, transaksi, aset, dan laporan."
+        actions={profile?.role === 'user' ? (
+          <Link to="/dashboard">
+            <Button icon={<ArrowLeft size={16} />} type="button" variant="secondary">
+              Back to Operasional
+            </Button>
+          </Link>
+        ) : null}
       />
 
       {message ? <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div> : null}
