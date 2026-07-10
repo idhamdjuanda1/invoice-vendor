@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, BarChart3, Download, Loader2, Plus } from 'lucide-react'
+import { ArrowLeft, BarChart3, Download, Edit3, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
@@ -21,7 +21,9 @@ import {
   listAccountingAssets,
   listAccountingTransactions,
   seedAccountingCategories,
+  softDeleteAccountingTransaction,
   updateAccountingCategory,
+  updateAccountingTransaction,
 } from '../../services/firestore/accounting'
 import { listInvoices } from '../../services/firestore/invoices'
 import { listAllPayments } from '../../services/firestore/payments'
@@ -108,6 +110,8 @@ export function AccountingDashboardPage() {
   const [assets, setAssets] = useState<AccountingAssetRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [editingTransactionId, setEditingTransactionId] = useState('')
+  const [isDeletingTransaction, setIsDeletingTransaction] = useState('')
   const [message, setMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [categoryInput, setCategoryInput] = useState({ type: 'INCOME' as AccountingTransactionType, name: '' })
@@ -286,7 +290,7 @@ export function AccountingDashboardPage() {
     setMessage('')
     setErrorMessage('')
     try {
-      await createAccountingTransaction(ownerUserId, profile.uid, {
+      const payload = {
         type: transactionInput.type,
         date: transactionInput.date,
         accountType: transactionInput.accountType,
@@ -294,10 +298,16 @@ export function AccountingDashboardPage() {
         categoryName: category?.name ?? transactionInput.type,
         amount: Number(transactionInput.amount),
         description: transactionInput.description,
-      })
+      }
+      if (editingTransactionId) {
+        await updateAccountingTransaction(ownerUserId, editingTransactionId, payload)
+      } else {
+        await createAccountingTransaction(ownerUserId, profile.uid, payload)
+      }
       setTransactionInput((current) => ({ ...current, amount: '', description: '' }))
+      setEditingTransactionId('')
       await loadAccounting()
-      setMessage('Transaksi accounting berhasil ditambahkan.')
+      setMessage(editingTransactionId ? 'Transaksi harian berhasil diperbarui.' : 'Transaksi accounting berhasil ditambahkan.')
     } catch (error) {
       console.error('Failed to create accounting transaction', error)
       setErrorMessage('Transaksi belum bisa disimpan.')
@@ -372,6 +382,55 @@ export function AccountingDashboardPage() {
     } catch (error) {
       console.error('Failed to update accounting category', error)
       setErrorMessage('Kategori belum bisa diperbarui.')
+    }
+  }
+
+  function handleEditTransaction(transaction: AccountingTransactionRecord) {
+    setEditingTransactionId(transaction.id)
+    setTransactionInput({
+      type: transaction.type,
+      date: toInputDate(transaction.date) || today,
+      accountType: transaction.accountType,
+      categoryId: transaction.categoryId ?? '',
+      amount: String(transaction.amount),
+      description: transaction.description,
+    })
+    setActiveTab(transaction.type === 'EXPENSE' ? 'expense' : 'income')
+    setMessage('Mode edit transaksi aktif. Ubah data lalu klik Simpan Perubahan.')
+    setErrorMessage('')
+  }
+
+  function cancelEditTransaction() {
+    setEditingTransactionId('')
+    setTransactionInput({
+      type: 'INCOME',
+      date: today,
+      accountType: 'BANK',
+      categoryId: '',
+      amount: '',
+      description: '',
+    })
+  }
+
+  async function handleDeleteTransaction(transaction: AccountingTransactionRecord) {
+    if (!ownerUserId) return
+    const confirmed = window.confirm('Hapus transaksi harian ini? Saldo kas/bank dan laporan accounting akan ikut berubah.')
+    if (!confirmed) return
+
+    setIsDeletingTransaction(transaction.id)
+    setMessage('')
+    setErrorMessage('')
+
+    try {
+      await softDeleteAccountingTransaction(ownerUserId, transaction.id)
+      if (editingTransactionId === transaction.id) cancelEditTransaction()
+      await loadAccounting()
+      setMessage('Transaksi harian berhasil dihapus.')
+    } catch (error) {
+      console.error('Failed to delete accounting transaction', error)
+      setErrorMessage('Transaksi harian belum bisa dihapus.')
+    } finally {
+      setIsDeletingTransaction('')
     }
   }
 
@@ -510,7 +569,16 @@ export function AccountingDashboardPage() {
 
               {['income', 'expense'].includes(activeTab) ? (
                 <Card>
-                  <CardHeader><h2 className="text-base font-semibold">Tambah Transaksi</h2></CardHeader>
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-3">
+                      <h2 className="text-base font-semibold">{editingTransactionId ? 'Edit Transaksi Harian' : 'Tambah Transaksi'}</h2>
+                      {editingTransactionId ? (
+                        <Button className="min-h-9 px-3 py-1.5" icon={<X size={15} />} onClick={cancelEditTransaction} type="button" variant="secondary">
+                          Batal
+                        </Button>
+                      ) : null}
+                    </div>
+                  </CardHeader>
                   <CardContent>
                     <form className="grid gap-4" onSubmit={handleCreateTransaction}>
                       <label className="grid gap-2 text-sm font-medium">
@@ -537,7 +605,9 @@ export function AccountingDashboardPage() {
                       </label>
                       <Input label="Nominal" min="0" type="number" value={transactionInput.amount} onChange={(event) => setTransactionInput((current) => ({ ...current, amount: event.target.value }))} />
                       <Input label="Keterangan" value={transactionInput.description} onChange={(event) => setTransactionInput((current) => ({ ...current, description: event.target.value }))} />
-                      <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>Tambah Transaksi</Button>
+                      <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>
+                        {editingTransactionId ? 'Simpan Perubahan' : 'Tambah Transaksi'}
+                      </Button>
                     </form>
                   </CardContent>
                 </Card>
@@ -554,7 +624,9 @@ export function AccountingDashboardPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-3">
-                  {filteredTransactions.length === 0 ? <p className="text-sm text-neutral-500">Belum ada transaksi.</p> : filteredTransactions.map((transaction) => (
+                  {filteredTransactions.length === 0 ? <p className="text-sm text-neutral-500">Belum ada transaksi.</p> : filteredTransactions.map((transaction) => {
+                    const canEditTransaction = ['MANUAL', 'OPENING_BALANCE'].includes(transaction.referenceType)
+                    return (
                     <div className="rounded-md border border-app-border p-3" key={transaction.id}>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -564,10 +636,30 @@ export function AccountingDashboardPage() {
                             {transaction.referenceType === 'INVOICE_PAYMENT' ? 'Otomatis dari pembayaran invoice' : transaction.referenceType === 'OPENING_BALANCE' ? 'Saldo manual kas/bank' : 'Transaksi manual'}
                           </p>
                         </div>
-                        <p className={`font-bold ${transaction.type === 'INCOME' ? 'text-green-700' : 'text-red-700'}`}>{transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}</p>
+                        <div className="grid gap-2 sm:justify-items-end">
+                          <p className={`font-bold ${transaction.type === 'INCOME' ? 'text-green-700' : 'text-red-700'}`}>{transaction.type === 'INCOME' ? '+' : '-'} {formatCurrency(transaction.amount)}</p>
+                          {canEditTransaction ? (
+                            <div className="flex flex-wrap gap-2">
+                              <Button className="min-h-9 px-3 py-1.5" icon={<Edit3 size={15} />} onClick={() => handleEditTransaction(transaction)} type="button" variant="secondary">
+                                Edit
+                              </Button>
+                              <Button
+                                className="min-h-9 px-3 py-1.5"
+                                disabled={Boolean(isDeletingTransaction)}
+                                icon={isDeletingTransaction === transaction.id ? <Loader2 className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                                onClick={() => void handleDeleteTransaction(transaction)}
+                                type="button"
+                                variant="danger"
+                              >
+                                Hapus
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </CardContent>
               </Card>
             </div>

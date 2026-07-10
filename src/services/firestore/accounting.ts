@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore'
 import { firestoreCollections } from '../../constants/firestore'
 import { dateStringToTimestamp, toInputDate } from '../../lib/formatters/date'
 import { firestore } from '../../lib/firebase/client'
@@ -215,6 +215,46 @@ export async function createAccountingTransaction(userId: string, createdById: s
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     deletedAt: null,
+  })
+}
+
+export async function updateAccountingTransaction(userId: string, transactionId: string, input: AccountingTransactionInput) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.accountingTransactions, transactionId))
+  if (!snapshot.exists()) throw new Error('ACCOUNTING_TRANSACTION_NOT_FOUND')
+
+  const transaction = buildTransaction(snapshot.id, snapshot.data())
+  if (transaction.userId !== userId || transaction.deletedAt) throw new Error('ACCOUNTING_TRANSACTION_NOT_FOUND')
+  if (!['MANUAL', 'OPENING_BALANCE'].includes(transaction.referenceType)) throw new Error('ACCOUNTING_TRANSACTION_LOCKED')
+  if (!input.amount || input.amount <= 0) throw new Error('ACCOUNTING_AMOUNT_INVALID')
+  if (!input.description.trim()) throw new Error('ACCOUNTING_DESCRIPTION_REQUIRED')
+
+  await updateDoc(doc(firestore, firestoreCollections.accountingTransactions, transactionId), {
+    userId,
+    type: input.type,
+    date: dateStringToTimestamp(input.date),
+    accountType: input.accountType,
+    categoryId: input.categoryId || null,
+    categoryName: input.categoryName,
+    amount: input.amount,
+    description: input.description.trim(),
+    referenceType: transaction.referenceType,
+    referenceId: transaction.referenceId,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function softDeleteAccountingTransaction(userId: string, transactionId: string) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.accountingTransactions, transactionId))
+  if (!snapshot.exists()) throw new Error('ACCOUNTING_TRANSACTION_NOT_FOUND')
+
+  const transaction = buildTransaction(snapshot.id, snapshot.data())
+  if (transaction.userId !== userId || transaction.deletedAt) throw new Error('ACCOUNTING_TRANSACTION_NOT_FOUND')
+  if (!['MANUAL', 'OPENING_BALANCE'].includes(transaction.referenceType)) throw new Error('ACCOUNTING_TRANSACTION_LOCKED')
+
+  await updateDoc(doc(firestore, firestoreCollections.accountingTransactions, transactionId), {
+    userId,
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   })
 }
 
