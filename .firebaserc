@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "invoice-vendor"
+    "default": "invoice-vendor",
+    "backend": "kuitansi---invoice"
   },
   "targets": {},
   "etags": {}
