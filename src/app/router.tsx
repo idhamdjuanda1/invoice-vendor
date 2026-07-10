@@ -12,6 +12,7 @@ import { LoginPage } from '../pages/auth/LoginPage'
 import { RegisterPage } from '../pages/auth/RegisterPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { PublicInvoicePage } from '../pages/public/PublicInvoicePage'
+import { PublicClientFormPage } from '../pages/public/PublicClientFormPage'
 import { PublicPricelistPage } from '../pages/public/PublicPricelistPage'
 import { AgreementDetailPage } from '../pages/vendor/AgreementDetailPage'
 import { AgreementsPage } from '../pages/vendor/AgreementsPage'
@@ -21,6 +22,8 @@ import { InvoiceCreatePage } from '../pages/vendor/InvoiceCreatePage'
 import { InvoiceDetailPage } from '../pages/vendor/InvoiceDetailPage'
 import { InvoiceEditPage } from '../pages/vendor/InvoiceEditPage'
 import { InvoicesPage } from '../pages/vendor/InvoicesPage'
+import { FreelancerDetailPage } from '../pages/vendor/FreelancerDetailPage'
+import { FreelancersPage } from '../pages/vendor/FreelancersPage'
 import { PackagesPage } from '../pages/vendor/PackagesPage'
 import { PaymentsPage } from '../pages/vendor/PaymentsPage'
 import { PricelistCreatePage } from '../pages/vendor/PricelistCreatePage'
@@ -51,6 +54,8 @@ export const router = createBrowserRouter([
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/profile', element: <ProfilePage /> },
       { path: '/packages', element: <PackagesPage /> },
+      { path: '/freelancers', element: <FreelancersPage /> },
+      { path: '/freelancers/:freelancerId', element: <FreelancerDetailPage /> },
       { path: '/invoices', element: <InvoicesPage /> },
       { path: '/invoices/new', element: <InvoiceCreatePage /> },
       { path: '/invoices/:invoiceId', element: <InvoiceDetailPage /> },
@@ -84,6 +89,7 @@ export const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { path: '/invoice/:slug', element: <PublicInvoicePage /> },
+      { path: '/form/:slug', element: <PublicClientFormPage /> },
       { path: '/pricelist/:slug', element: <PublicPricelistPage /> },
     ],
   },

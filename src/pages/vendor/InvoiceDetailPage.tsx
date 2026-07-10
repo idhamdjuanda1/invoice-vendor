@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Download, Edit3, FileSignature, Loader2, Printer } from 'lucide-react'
+import { EventTeamPanel } from '../../components/invoice/EventTeamPanel'
 import { PaymentManager } from '../../components/invoice/PaymentManager'
 import { WhatsAppReminderButton } from '../../components/invoice/WhatsAppReminderButton'
 import { Button } from '../../components/ui/Button'
@@ -176,6 +177,7 @@ export function InvoiceDetailPage() {
         </Card>
       ) : invoice ? (
         <>
+          <EventTeamPanel invoice={invoice} onChanged={loadInvoice} />
           <PaymentManager invoice={invoice} onChanged={loadInvoice} />
 
           <Card className="print-card">

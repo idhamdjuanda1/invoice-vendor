@@ -12,6 +12,68 @@ export type TokenDurationType =
 export type PaymentStatus = 'BELUM_BAYAR' | 'DP' | 'CICILAN' | 'LUNAS'
 export type PaymentMethod = 'TRANSFER_BANK' | 'CASH' | 'QRIS' | 'OTHER'
 export type DiscountType = 'NOMINAL' | 'PERCENTAGE'
+export type EventType = 'WEDDING' | 'PREWEDDING' | 'LAMARAN' | 'CORPORATE'
+export type EventDataStatus = 'NOT_FILLED' | 'PARTIAL' | 'COMPLETE'
+export type FreelanceType = 'FOTOGRAFER' | 'VIDEOGRAFER' | 'ASISTEN'
+
+export type EventLocationDetail = {
+  venueName: string
+  address: string
+  googleMapsUrl: string
+  latitude: number | null
+  longitude: number | null
+}
+
+export type InvoiceEventDetail = {
+  id: string
+  userId: string
+  invoiceId: string
+  eventType: EventType
+  status: EventDataStatus
+  publicFormSlug: string
+  publicFormEnabled: boolean
+  location: EventLocationDetail
+  details: Record<string, string>
+  submittedAt: FirestoreDate
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type FreelanceRecord = {
+  id: string
+  userId: string
+  fullName: string
+  freelanceType: FreelanceType
+  whatsappNumber: string
+  email: string
+  address: string | null
+  notes: string | null
+  isActive: boolean
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type TeamAssignmentMember = {
+  freelanceId: string
+  fullName: string
+  freelanceType: FreelanceType
+  whatsappNumber: string
+  email: string
+}
+
+export type TeamAssignmentRecord = {
+  id: string
+  userId: string
+  invoiceId: string
+  photographers: TeamAssignmentMember[]
+  videographers: TeamAssignmentMember[]
+  assistants: TeamAssignmentMember[]
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
 
 export type PlaceholderEntity = {
   id: string
@@ -239,6 +301,10 @@ export type InvoiceRecord = {
   clientAddress: string | null
   invoiceNumber: string
   invoiceDate: FirestoreDate
+  eventType: EventType
+  eventDataStatus: EventDataStatus
+  publicFormSlug: string | null
+  publicFormEnabled: boolean
   eventDate: FirestoreDate
   eventLocation: string
   additionalNote: string | null

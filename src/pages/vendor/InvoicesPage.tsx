@@ -6,6 +6,7 @@ import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { WhatsAppReminderButton } from '../../components/invoice/WhatsAppReminderButton'
 import { useAuth } from '../../features/auth/useAuth'
+import { eventStatusLabels, eventStatusStyles, eventTypeLabels } from '../../lib/events/eventDetails'
 import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate } from '../../lib/formatters/date'
 import { paymentStatusLabels } from '../../lib/formatters/invoice'
@@ -98,6 +99,14 @@ export function InvoicesPage() {
                       {paymentStatusLabels[invoice.paymentStatus]}
                     </span>
                   </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-app-muted px-3 py-1 text-xs font-semibold text-neutral-600">
+                      {eventTypeLabels[invoice.eventType]}
+                    </span>
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${eventStatusStyles[invoice.eventDataStatus]}`}>
+                      {eventStatusLabels[invoice.eventDataStatus]}
+                    </span>
+                  </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-app-muted p-3 text-sm">
                     <div>
                       <p className="text-xs text-neutral-500">Total</p>
@@ -143,12 +152,14 @@ export function InvoicesPage() {
               ))}
             </div>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[760px] text-left text-sm">
+              <table className="w-full min-w-[920px] text-left text-sm">
                 <thead className="border-b border-app-border bg-app-muted text-xs uppercase tracking-wide text-neutral-500">
                   <tr>
                     <th className="px-5 py-3">Nomor Invoice</th>
                     <th className="px-5 py-3">Klien</th>
                     <th className="px-5 py-3">Tanggal Acara</th>
+                    <th className="px-5 py-3">Jenis</th>
+                    <th className="px-5 py-3">Data Acara</th>
                     <th className="px-5 py-3">Total</th>
                     <th className="px-5 py-3">Terbayar</th>
                     <th className="px-5 py-3">Status</th>
@@ -161,6 +172,12 @@ export function InvoicesPage() {
                       <td className="px-5 py-4 font-semibold">{invoice.invoiceNumber}</td>
                       <td className="px-5 py-4">{invoice.clientName || 'Klien tanpa nama'}</td>
                       <td className="px-5 py-4">{formatDisplayDate(invoice.eventDate)}</td>
+                      <td className="px-5 py-4">{eventTypeLabels[invoice.eventType]}</td>
+                      <td className="px-5 py-4">
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${eventStatusStyles[invoice.eventDataStatus]}`}>
+                          {eventStatusLabels[invoice.eventDataStatus]}
+                        </span>
+                      </td>
                       <td className="px-5 py-4">{formatCurrency(invoice.totalAmount)}</td>
                       <td className="px-5 py-4">{formatCurrency(invoice.totalPaid)}</td>
                       <td className="px-5 py-4">

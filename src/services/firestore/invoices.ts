@@ -17,6 +17,7 @@ import { firestore } from '../../lib/firebase/client'
 import type {
   ClientRecord,
   DiscountType,
+  EventType,
   InvoicePackageItem,
   InvoicePaymentEntry,
   InvoiceRecord,
@@ -25,6 +26,7 @@ import type {
 } from '../../types/domain'
 import { createClient, updateClient, type ClientInput } from './clients'
 import { getBusinessProfile } from './businessProfiles'
+import { createInvoiceEvent } from './invoiceEvents'
 import { listPayments, recalculateInvoicePayments } from './payments'
 import { createReceiptForPayment } from './receipts'
 
@@ -33,6 +35,7 @@ export type InvoiceMutationInput = {
   clientId: string
   existingClient: ClientInput
   newClient: ClientInput
+  eventType: EventType
   eventDate: string
   eventLocation: string
   additionalNote: string
@@ -64,6 +67,10 @@ function buildInvoiceRecord(id: string, data: Record<string, unknown>): InvoiceR
     clientAddress: typeof data.clientAddress === 'string' ? data.clientAddress : null,
     invoiceNumber: String(data.invoiceNumber ?? ''),
     invoiceDate: (data.invoiceDate as InvoiceRecord['invoiceDate']) ?? null,
+    eventType: (data.eventType as EventType) ?? 'WEDDING',
+    eventDataStatus: (data.eventDataStatus as InvoiceRecord['eventDataStatus']) ?? 'NOT_FILLED',
+    publicFormSlug: typeof data.publicFormSlug === 'string' ? data.publicFormSlug : null,
+    publicFormEnabled: Boolean(data.publicFormEnabled),
     eventDate: (data.eventDate as InvoiceRecord['eventDate']) ?? null,
     eventLocation: String(data.eventLocation ?? ''),
     additionalNote: typeof data.additionalNote === 'string' ? data.additionalNote : null,
@@ -115,7 +122,6 @@ function normalizeInvoiceInput(input: InvoiceMutationInput, dependencies: Invoic
   const selectedPackages = dependencies.packages.filter((servicePackage) => input.packageIds.includes(servicePackage.id))
   if (selectedPackages.length === 0) throw new Error('INVOICE_PACKAGES_REQUIRED')
   if (!input.eventDate) throw new Error('INVOICE_EVENT_DATE_REQUIRED')
-  if (!input.eventLocation.trim()) throw new Error('INVOICE_EVENT_LOCATION_REQUIRED')
 
   const client =
     input.clientMode === 'existing'
@@ -249,6 +255,10 @@ export async function createInvoice(
       clientAddress: client.address,
       invoiceNumber,
       invoiceDate: Timestamp.now(),
+      eventType: input.eventType,
+      eventDataStatus: 'NOT_FILLED',
+      publicFormSlug: null,
+      publicFormEnabled: false,
       eventDate: dateStringToTimestamp(input.eventDate),
       eventLocation: input.eventLocation.trim(),
       additionalNote: input.additionalNote.trim() || null,
@@ -295,6 +305,10 @@ export async function createInvoice(
     }
   }
 
+  await createInvoiceEvent(userId, invoiceRef.id, input.eventType).catch((error) => {
+    console.error('Invoice was created, but event detail document creation failed', error)
+  })
+
   return invoiceRef.id
 }
 
@@ -327,6 +341,7 @@ export async function updateInvoice(
     clientWhatsappNumber: client.whatsappNumber,
     clientEmail: client.email,
     clientAddress: client.address,
+    eventType: input.eventType,
     eventDate: dateStringToTimestamp(input.eventDate),
     eventLocation: input.eventLocation.trim(),
     additionalNote: input.additionalNote.trim() || null,
@@ -347,6 +362,9 @@ export async function updateInvoice(
     updatedAt: serverTimestamp(),
   })
 
+  await createInvoiceEvent(userId, invoiceId, input.eventType).catch((error) => {
+    console.error('Invoice was updated, but event detail document sync failed', error)
+  })
   await recalculateInvoicePayments(userId, invoiceId)
 }
 

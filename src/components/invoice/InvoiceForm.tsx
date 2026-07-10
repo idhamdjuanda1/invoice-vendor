@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader } from '../ui/Card'
 import { Input } from '../ui/Input'
 import { getFriendlyAuthError } from '../../features/auth/authErrors'
 import { useAuth } from '../../features/auth/useAuth'
+import { eventTypeLabels } from '../../lib/events/eventDetails'
 import { formatCurrency, parseCurrencyInput } from '../../lib/formatters/currency'
 import { paymentMethodLabels, paymentStatusLabels } from '../../lib/formatters/invoice'
 import { toInputDate } from '../../lib/formatters/date'
@@ -16,6 +17,7 @@ import { listPricelists } from '../../services/firestore/pricelists'
 import type {
   ClientRecord,
   DiscountType,
+  EventType,
   InvoiceRecord,
   PaymentMethod,
   PaymentStatus,
@@ -62,7 +64,6 @@ function getErrorMessage(error: unknown) {
     INVOICE_CLIENT_REQUIRED: 'Pilih klien yang sudah tersimpan atau buat klien baru.',
     INVOICE_PACKAGES_REQUIRED: 'Pilih minimal satu paket.',
     INVOICE_EVENT_DATE_REQUIRED: 'Tanggal acara wajib diisi.',
-    INVOICE_EVENT_LOCATION_REQUIRED: 'Lokasi acara wajib diisi.',
     INVOICE_NOT_FOUND: 'Invoice tidak ditemukan.',
   }
 
@@ -79,6 +80,7 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
   const [clientId, setClientId] = useState(invoice?.clientId ?? '')
   const [existingClient, setExistingClient] = useState<ClientInput>(invoiceClientToInput(invoice))
   const [newClient, setNewClient] = useState<ClientInput>(emptyClientInput)
+  const [eventType, setEventType] = useState<EventType>(invoice?.eventType ?? 'WEDDING')
   const [eventDate, setEventDate] = useState(toInputDate(invoice?.eventDate))
   const [eventLocation, setEventLocation] = useState(invoice?.eventLocation ?? '')
   const [additionalNote, setAdditionalNote] = useState(invoice?.additionalNote ?? '')
@@ -212,6 +214,7 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
       clientId,
       existingClient,
       newClient,
+      eventType,
       eventDate,
       eventLocation,
       additionalNote,
@@ -378,8 +381,27 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
           <h2 className="text-base font-semibold">Data Acara</h2>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium text-app-text">
+            Jenis Acara
+            <select
+              className="min-h-12 rounded-md border border-app-border bg-white px-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:min-h-11 sm:text-sm"
+              value={eventType}
+              onChange={(event) => setEventType(event.target.value as EventType)}
+            >
+              {Object.entries(eventTypeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
           <Input label="Tanggal Acara" type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} />
-          <Input label="Lokasi Acara" value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} />
+          <Input
+            hint="Opsional. Detail lokasi lengkap bisa diisi Vendor atau Klien melalui Form Klien."
+            label="Lokasi Acara"
+            value={eventLocation}
+            onChange={(event) => setEventLocation(event.target.value)}
+          />
           <label className="grid gap-2 text-sm font-medium text-app-text md:col-span-2">
             Catatan Tambahan
             <textarea

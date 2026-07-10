@@ -107,6 +107,42 @@ service cloud.firestore {
         && sequenceId.matches(request.auth.uid + '_[0-9]{6}');
     }
 
+    function isPublicClientFormInvoiceUpdate() {
+      return resource.data.publicFormEnabled == true
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.clientId == resource.data.clientId
+        && request.resource.data.invoiceNumber == resource.data.invoiceNumber
+        && request.resource.data.totalAmount == resource.data.totalAmount
+        && request.resource.data.totalPaid == resource.data.totalPaid
+        && request.resource.data.remainingAmount == resource.data.remainingAmount
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && request.resource.data.items == resource.data.items
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'eventType',
+          'eventLocation',
+          'eventDataStatus',
+          'publicFormSlug',
+          'publicFormEnabled',
+          'updatedAt'
+        ]);
+    }
+
+    function isPublicClientFormEventUpdate() {
+      return resource.data.publicFormEnabled == true
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.invoiceId == resource.data.invoiceId
+        && request.resource.data.eventType == resource.data.eventType
+        && request.resource.data.publicFormSlug == resource.data.publicFormSlug
+        && request.resource.data.publicFormEnabled == resource.data.publicFormEnabled
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'location',
+          'details',
+          'status',
+          'submittedAt',
+          'updatedAt'
+        ]);
+    }
+
     match /users/{userId} {
       allow read: if isSuperAdmin() || isOwner(userId);
       allow create: if isBootstrapSuperAdminCreate(userId)
@@ -189,9 +225,9 @@ service cloud.firestore {
     }
 
     match /invoices/{invoiceId} {
-      allow read: if resource.data.isPublic == true || isSuperAdmin() || isOwner(resource.data.userId);
+      allow read: if resource.data.isPublic == true || resource.data.publicFormEnabled == true || isSuperAdmin() || isOwner(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
-      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId) || isPublicClientFormInvoiceUpdate();
       allow delete: if false;
     }
 
@@ -203,9 +239,30 @@ service cloud.firestore {
     }
 
     match /invoiceEvents/{eventId} {
+      allow read: if resource.data.publicFormEnabled == true || isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || isOwner(resource.data.userId) || isPublicClientFormEventUpdate();
+      allow delete: if false;
+    }
+
+    match /freelancers/{freelancerId} {
       allow read: if isSuperAdmin() || isOwner(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
-      allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
+    match /teamAssignments/{assignmentId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
+    match /notificationLogs/{notificationLogId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if false;
       allow delete: if false;
     }
 

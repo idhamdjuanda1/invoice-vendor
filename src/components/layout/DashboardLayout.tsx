@@ -11,6 +11,7 @@ import {
   Shield,
   Tags,
   Upload,
+  UserCheck,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -30,6 +31,7 @@ const vendorNav = [
   { label: 'Dashboard', href: '/dashboard', icon: Home },
   { label: 'Profil', href: '/profile', icon: UserRound },
   { label: 'Paket', href: '/packages', icon: Boxes },
+  { label: 'Freelance', href: '/freelancers', icon: UserCheck },
   { label: 'Invoice', href: '/invoices', icon: FileText },
   { label: 'Pembayaran', href: '/payments', icon: Banknote },
   { label: 'Kuitansi', href: '/receipts', icon: Receipt },
