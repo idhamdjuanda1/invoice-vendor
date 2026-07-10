@@ -872,12 +872,12 @@ export function AccountingDashboardPage() {
       {errorMessage ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div> : null}
 
       <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start">
-        <aside className="rounded-md border border-app-border bg-white p-2 lg:sticky lg:top-4">
-          <p className="hidden px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-neutral-500 lg:block">Menu Accounting</p>
-          <div className="flex gap-2 overflow-x-auto lg:grid lg:gap-1 lg:overflow-visible">
+        <aside className="hidden rounded-md border border-app-border bg-white p-2 lg:sticky lg:top-4 lg:block">
+          <p className="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">Menu Accounting</p>
+          <div className="grid gap-1">
             {tabs.map((tab) => (
               <button
-                className={`shrink-0 rounded-md px-3 py-2 text-left text-sm font-semibold ${activeTab === tab.id ? 'bg-app-gold-soft text-app-text' : 'text-neutral-500 hover:bg-app-muted'}`}
+                className={`rounded-md px-3 py-2 text-left text-sm font-semibold ${activeTab === tab.id ? 'bg-app-gold-soft text-app-text' : 'text-neutral-500 hover:bg-app-muted'}`}
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
@@ -888,7 +888,7 @@ export function AccountingDashboardPage() {
           </div>
         </aside>
 
-        <div className="min-w-0">
+        <div className="min-w-0 pb-20 lg:pb-0">
           {isLoading ? (
             <Card><CardContent className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 className="animate-spin" size={16} /> Memuat accounting...</CardContent></Card>
           ) : (
@@ -1447,6 +1447,19 @@ export function AccountingDashboardPage() {
           )}
         </div>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-[4.75rem] z-20 flex gap-2 overflow-x-auto border-t border-app-border bg-white px-3 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.05)] lg:hidden">
+        {tabs.map((tab) => (
+          <button
+            className={`flex min-w-24 flex-col items-center justify-center rounded-md px-3 py-2 text-center text-[11px] font-semibold ${activeTab === tab.id ? 'bg-app-gold-soft text-app-text' : 'text-neutral-500'}`}
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
       <Card>
         <CardHeader><h2 className="text-base font-semibold">Kategori Transaksi</h2></CardHeader>
