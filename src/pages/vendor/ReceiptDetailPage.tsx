@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, Loader2, Printer } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Download, Loader2, Printer, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
@@ -10,16 +10,19 @@ import { formatDisplayDate } from '../../lib/formatters/date'
 import { paymentMethodLabels } from '../../lib/formatters/invoice'
 import { makePrintTitle } from '../../lib/formatters/printTitle'
 import { generateReceiptPdf } from '../../lib/pdf/documentPdf'
+import { softDeletePayment } from '../../services/firestore/payments'
 import { getReceipt } from '../../services/firestore/receipts'
 import type { ReceiptRecord } from '../../types/domain'
 
 export function ReceiptDetailPage() {
   const { receiptId } = useParams()
+  const navigate = useNavigate()
   const { profile } = useAuth()
   const pdfRef = useRef<HTMLDivElement | null>(null)
   const [receipt, setReceipt] = useState<ReceiptRecord | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   function handlePrint() {
@@ -49,6 +52,24 @@ export function ReceiptDetailPage() {
       setErrorMessage('PDF kuitansi belum bisa dibuat. Coba refresh halaman lalu ulangi.')
     } finally {
       setIsGeneratingPdf(false)
+    }
+  }
+
+  async function handleDeleteReceipt() {
+    if (!profile?.uid || !receipt) return
+    const confirmed = window.confirm('Hapus kuitansi ini? Pembayaran terkait akan ikut dihapus dari invoice dan accounting.')
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    setErrorMessage('')
+    try {
+      await softDeletePayment(profile.uid, receipt.paymentId)
+      navigate('/receipts', { replace: true })
+    } catch (error) {
+      console.error('Failed to delete receipt/payment', error)
+      setErrorMessage('Kuitansi belum bisa dihapus.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -97,6 +118,16 @@ export function ReceiptDetailPage() {
                 variant="secondary"
               >
                 {isGeneratingPdf ? 'Membuat PDF...' : 'Download PDF'}
+              </Button>
+            ) : null}
+            {receipt ? (
+              <Button
+                disabled={isDeleting}
+                icon={isDeleting ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                onClick={() => void handleDeleteReceipt()}
+                variant="danger"
+              >
+                {isDeleting ? 'Menghapus...' : 'Hapus'}
               </Button>
             ) : null}
             <Button icon={<Printer size={16} />} onClick={handlePrint}>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, Loader2, Printer, RefreshCw } from 'lucide-react'
+import { Eye, Loader2, Printer, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
@@ -9,7 +9,7 @@ import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate } from '../../lib/formatters/date'
 import { paymentMethodLabels } from '../../lib/formatters/invoice'
 import { listInvoices } from '../../services/firestore/invoices'
-import { listPayments } from '../../services/firestore/payments'
+import { listPayments, softDeletePayment } from '../../services/firestore/payments'
 import { createReceiptForPayment, listReceipts } from '../../services/firestore/receipts'
 import type { ReceiptRecord } from '../../types/domain'
 
@@ -18,6 +18,7 @@ export function ReceiptsPage() {
   const [receipts, setReceipts] = useState<ReceiptRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isDeleting, setIsDeleting] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -57,6 +58,27 @@ export function ReceiptsPage() {
       setErrorMessage('Kuitansi belum bisa disinkronkan.')
     } finally {
       setIsSyncing(false)
+    }
+  }
+
+  async function handleDeleteReceipt(receipt: ReceiptRecord) {
+    if (!profile?.uid) return
+    const confirmed = window.confirm('Hapus kuitansi ini? Pembayaran terkait akan ikut dihapus dari invoice dan accounting.')
+    if (!confirmed) return
+
+    setIsDeleting(receipt.id)
+    setErrorMessage('')
+    setSuccessMessage('')
+
+    try {
+      await softDeletePayment(profile.uid, receipt.paymentId)
+      await loadReceipts()
+      setSuccessMessage('Kuitansi dan pembayaran terkait berhasil dihapus. Accounting ikut diperbarui.')
+    } catch (error) {
+      console.error('Failed to delete receipt/payment', error)
+      setErrorMessage('Kuitansi belum bisa dihapus.')
+    } finally {
+      setIsDeleting('')
     }
   }
 
@@ -136,6 +158,15 @@ export function ReceiptsPage() {
                         Cetak
                       </Button>
                     </Link>
+                    <Button
+                      className="col-span-2 w-full"
+                      disabled={Boolean(isDeleting)}
+                      icon={isDeleting === receipt.id ? <Loader2 className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                      onClick={() => void handleDeleteReceipt(receipt)}
+                      variant="danger"
+                    >
+                      Hapus
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -174,6 +205,15 @@ export function ReceiptsPage() {
                               Cetak
                             </Button>
                           </Link>
+                          <Button
+                            className="px-3"
+                            disabled={Boolean(isDeleting)}
+                            icon={isDeleting === receipt.id ? <Loader2 className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                            onClick={() => void handleDeleteReceipt(receipt)}
+                            variant="danger"
+                          >
+                            Hapus
+                          </Button>
                         </div>
                       </td>
                     </tr>
