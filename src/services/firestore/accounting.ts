@@ -27,7 +27,9 @@ export type AccountingAssetInput = {
   name: string
   purchaseDate: string
   purchasePrice: number
+  paymentAccountType: AccountingAccountType
   condition: AccountingAssetCondition
+  depreciationMonths: number
   location: string
   notes: string
 }
@@ -109,7 +111,7 @@ function buildTransaction(id: string, data: Record<string, unknown>): Accounting
     amount: Number(data.amount ?? 0),
     description: String(data.description ?? ''),
     referenceType:
-      data.referenceType === 'INVOICE_PAYMENT' || data.referenceType === 'ASSET_PURCHASE' || data.referenceType === 'OPENING_BALANCE'
+      data.referenceType === 'INVOICE_PAYMENT' || data.referenceType === 'ASSET_PURCHASE' || data.referenceType === 'OPENING_BALANCE' || data.referenceType === 'DEPRECIATION'
         ? data.referenceType
         : 'MANUAL',
     referenceId: typeof data.referenceId === 'string' ? data.referenceId : null,
@@ -122,16 +124,22 @@ function buildTransaction(id: string, data: Record<string, unknown>): Accounting
 
 function buildAsset(id: string, data: Record<string, unknown>): AccountingAssetRecord {
   const condition = ['PERLU_PERAWATAN', 'RUSAK', 'DIJUAL'].includes(String(data.condition)) ? data.condition as AccountingAssetCondition : 'BAIK'
+  const purchasePrice = Number(data.purchasePrice ?? 0)
+  const depreciationMonths = Math.max(Number(data.depreciationMonths ?? 12), 1)
+  const monthlyDepreciation = Number(data.monthlyDepreciation ?? 0) || Math.round(purchasePrice / depreciationMonths)
   return {
     id,
     userId: String(data.userId ?? ''),
     name: String(data.name ?? ''),
     purchaseDate: (data.purchaseDate as AccountingAssetRecord['purchaseDate']) ?? null,
-    purchasePrice: Number(data.purchasePrice ?? 0),
+    purchasePrice,
+    paymentAccountType: data.paymentAccountType === 'CASH' ? 'CASH' : 'BANK',
     condition,
     location: typeof data.location === 'string' ? data.location : null,
     notes: typeof data.notes === 'string' ? data.notes : null,
-    depreciationMethod: typeof data.depreciationMethod === 'string' ? data.depreciationMethod : null,
+    depreciationMethod: typeof data.depreciationMethod === 'string' ? data.depreciationMethod : 'STRAIGHT_LINE',
+    depreciationMonths,
+    monthlyDepreciation,
     createdAt: (data.createdAt as AccountingAssetRecord['createdAt']) ?? null,
     updatedAt: (data.updatedAt as AccountingAssetRecord['updatedAt']) ?? null,
     deletedAt: (data.deletedAt as AccountingAssetRecord['deletedAt']) ?? null,
@@ -239,15 +247,37 @@ export async function listAccountingAssets(userId: string) {
 export async function createAccountingAsset(userId: string, input: AccountingAssetInput) {
   if (!input.name.trim()) throw new Error('ACCOUNTING_ASSET_NAME_REQUIRED')
   if (!input.purchasePrice || input.purchasePrice <= 0) throw new Error('ACCOUNTING_AMOUNT_INVALID')
-  await addDoc(collection(firestore, firestoreCollections.accountingAssets), {
+  const depreciationMonths = Math.max(Number(input.depreciationMonths || 12), 1)
+  const monthlyDepreciation = Math.round(input.purchasePrice / depreciationMonths)
+  const assetRef = await addDoc(collection(firestore, firestoreCollections.accountingAssets), {
     userId,
     name: input.name.trim(),
     purchaseDate: dateStringToTimestamp(input.purchaseDate),
     purchasePrice: input.purchasePrice,
+    paymentAccountType: input.paymentAccountType,
     condition: input.condition,
     location: input.location.trim() || null,
     notes: input.notes.trim() || null,
-    depreciationMethod: null,
+    depreciationMethod: 'STRAIGHT_LINE',
+    depreciationMonths,
+    monthlyDepreciation,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    deletedAt: null,
+  })
+
+  await addDoc(collection(firestore, firestoreCollections.accountingTransactions), {
+    userId,
+    type: 'EXPENSE',
+    date: dateStringToTimestamp(input.purchaseDate),
+    accountType: input.paymentAccountType,
+    categoryId: null,
+    categoryName: 'Pembelian Aset',
+    amount: input.purchasePrice,
+    description: `Pembelian aset ${input.name.trim()}`,
+    referenceType: 'ASSET_PURCHASE',
+    referenceId: assetRef.id,
+    createdById: userId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     deletedAt: null,
@@ -257,9 +287,10 @@ export async function createAccountingAsset(userId: string, input: AccountingAss
 export function buildAccountingSummary(transactions: AccountingTransactionRecord[], assets: AccountingAssetRecord[]) {
   const operatingTransactions = transactions.filter((transaction) => transaction.referenceType !== 'OPENING_BALANCE')
   const income = operatingTransactions.filter((transaction) => transaction.type === 'INCOME')
-  const expenses = operatingTransactions.filter((transaction) => transaction.type === 'EXPENSE')
+  const expenses = operatingTransactions.filter((transaction) => transaction.type === 'EXPENSE' && transaction.referenceType !== 'ASSET_PURCHASE')
   const monthlyIncome = income.filter((transaction) => isCurrentMonth(transaction.date)).reduce((sum, item) => sum + item.amount, 0)
   const monthlyExpense = expenses.filter((transaction) => isCurrentMonth(transaction.date)).reduce((sum, item) => sum + item.amount, 0)
+  const monthlyDepreciation = assets.reduce((sum, asset) => sum + asset.monthlyDepreciation, 0)
   const cashBalance = transactions.reduce((sum, item) => {
     if (item.accountType !== 'CASH') return sum
     return item.type === 'INCOME' ? sum + item.amount : sum - item.amount
@@ -269,14 +300,25 @@ export function buildAccountingSummary(transactions: AccountingTransactionRecord
     return item.type === 'INCOME' ? sum + item.amount : sum - item.amount
   }, 0)
 
+  const assetValue = assets.reduce((sum, asset) => {
+    const purchaseDate = toInputDate(asset.purchaseDate)
+    if (!purchaseDate) return sum + asset.purchasePrice
+    const startDate = new Date(`${purchaseDate}T00:00:00`)
+    const now = new Date()
+    const elapsedMonths = Math.max((now.getFullYear() - startDate.getFullYear()) * 12 + now.getMonth() - startDate.getMonth() + 1, 0)
+    const usedMonths = Math.min(elapsedMonths, asset.depreciationMonths)
+    return sum + Math.max(asset.purchasePrice - usedMonths * asset.monthlyDepreciation, 0)
+  }, 0)
+
   return {
     cashBalance,
     bankBalance,
     monthlyIncome,
-    monthlyExpense,
-    netProfit: monthlyIncome - monthlyExpense,
+    monthlyExpense: monthlyExpense + monthlyDepreciation,
+    monthlyDepreciation,
+    netProfit: monthlyIncome - monthlyExpense - monthlyDepreciation,
     receivable: 0,
     payable: 0,
-    assetValue: assets.reduce((sum, asset) => sum + asset.purchasePrice, 0),
+    assetValue,
   }
 }

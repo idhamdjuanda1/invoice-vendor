@@ -150,7 +150,7 @@ export type AccountingTransactionRecord = {
   categoryName: string
   amount: number
   description: string
-  referenceType: 'MANUAL' | 'INVOICE_PAYMENT' | 'ASSET_PURCHASE' | 'OPENING_BALANCE'
+  referenceType: 'MANUAL' | 'INVOICE_PAYMENT' | 'ASSET_PURCHASE' | 'OPENING_BALANCE' | 'DEPRECIATION'
   referenceId: string | null
   createdById: string
   createdAt: FirestoreDate
@@ -164,10 +164,13 @@ export type AccountingAssetRecord = {
   name: string
   purchaseDate: FirestoreDate
   purchasePrice: number
+  paymentAccountType: AccountingAccountType
   condition: AccountingAssetCondition
   location: string | null
   notes: string | null
   depreciationMethod: string | null
+  depreciationMonths: number
+  monthlyDepreciation: number
   createdAt: FirestoreDate
   updatedAt: FirestoreDate
   deletedAt: FirestoreDate

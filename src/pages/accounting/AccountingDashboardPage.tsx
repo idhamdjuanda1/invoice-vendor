@@ -129,7 +129,9 @@ export function AccountingDashboardPage() {
     name: '',
     purchaseDate: today,
     purchasePrice: '',
+    paymentAccountType: 'BANK' as AccountingAccountType,
     condition: 'BAIK' as AccountingAssetCondition,
+    depreciationMonths: '24',
     location: '',
     notes: '',
   })
@@ -339,7 +341,9 @@ export function AccountingDashboardPage() {
         name: assetInput.name,
         purchaseDate: assetInput.purchaseDate,
         purchasePrice: Number(assetInput.purchasePrice),
+        paymentAccountType: assetInput.paymentAccountType,
         condition: assetInput.condition,
+        depreciationMonths: Number(assetInput.depreciationMonths),
         location: assetInput.location,
         notes: assetInput.notes,
       })
@@ -388,6 +392,9 @@ export function AccountingDashboardPage() {
       Aset: asset.name,
       Tanggal: formatDisplayDate(asset.purchaseDate),
       Harga: asset.purchasePrice,
+      DibayarDari: accountingAccountTypeLabels[asset.paymentAccountType],
+      MasaManfaatBulan: asset.depreciationMonths,
+      PenyusutanBulanan: asset.monthlyDepreciation,
       Kondisi: assetConditionLabels[asset.condition],
       Lokasi: asset.location ?? '',
       Catatan: asset.notes ?? '',
@@ -437,6 +444,7 @@ export function AccountingDashboardPage() {
                   ['Pendapatan Bulan Ini', summary.monthlyIncome],
                   ['Pengeluaran Bulan Ini', summary.monthlyExpense],
                   ['Laba Bersih', summary.netProfit],
+                  ['Penyusutan Bulan Ini', summary.monthlyDepreciation],
                   ['Piutang', summary.receivable],
                   ['Hutang', summary.payable],
                   ['Nilai Aset', summary.assetValue],
@@ -575,6 +583,21 @@ export function AccountingDashboardPage() {
                     <Input label="Tanggal Pembelian" type="date" value={assetInput.purchaseDate} onChange={(event) => setAssetInput((current) => ({ ...current, purchaseDate: event.target.value }))} />
                     <Input label="Harga" min="0" type="number" value={assetInput.purchasePrice} onChange={(event) => setAssetInput((current) => ({ ...current, purchasePrice: event.target.value }))} />
                     <label className="grid gap-2 text-sm font-medium">
+                      Dibayar Dari
+                      <select className="min-h-12 rounded-md border border-app-border px-3" value={assetInput.paymentAccountType} onChange={(event) => setAssetInput((current) => ({ ...current, paymentAccountType: event.target.value as AccountingAccountType }))}>
+                        <option value="CASH">Kas</option>
+                        <option value="BANK">Bank</option>
+                      </select>
+                    </label>
+                    <Input
+                      hint={assetInput.purchasePrice ? `Estimasi beban per bulan: ${formatCurrency(Math.round(Number(assetInput.purchasePrice || 0) / Math.max(Number(assetInput.depreciationMonths || 1), 1)))}` : 'Contoh: 12 bulan, 24 bulan, atau 36 bulan.'}
+                      label="Masa Manfaat / Penyusutan (bulan)"
+                      min="1"
+                      type="number"
+                      value={assetInput.depreciationMonths}
+                      onChange={(event) => setAssetInput((current) => ({ ...current, depreciationMonths: event.target.value }))}
+                    />
+                    <label className="grid gap-2 text-sm font-medium">
                       Kondisi
                       <select className="min-h-12 rounded-md border border-app-border px-3" value={assetInput.condition} onChange={(event) => setAssetInput((current) => ({ ...current, condition: event.target.value as AccountingAssetCondition }))}>
                         {Object.entries(assetConditionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -600,6 +623,9 @@ export function AccountingDashboardPage() {
                         <div>
                           <p className="font-semibold">{asset.name}</p>
                           <p className="text-sm text-neutral-500">{formatDisplayDate(asset.purchaseDate)} - {assetConditionLabels[asset.condition]}{asset.location ? ` - ${asset.location}` : ''}</p>
+                          <p className="mt-1 text-xs text-neutral-500">
+                            Dibayar dari {accountingAccountTypeLabels[asset.paymentAccountType]} - Penyusutan {formatCurrency(asset.monthlyDepreciation)} / bulan selama {asset.depreciationMonths} bulan
+                          </p>
                         </div>
                         <p className="font-bold">{formatCurrency(asset.purchasePrice)}</p>
                       </div>
