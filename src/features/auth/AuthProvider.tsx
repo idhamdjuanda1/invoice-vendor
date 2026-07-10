@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { firebaseAuth } from '../../lib/firebase/client'
-import { registerVendorWithActivationToken } from '../../services/firestore/activationTokens'
+import { registerVendorWithFreeTrial } from '../../services/firestore/activationTokens'
 import {
   bootstrapSuperAdminProfile,
   createActivationAccessState,
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerVendor = useCallback(
     async (input: RegisterInput) => {
-      await registerVendorWithActivationToken(input)
+      await registerVendorWithFreeTrial(input)
       await loadProfile(firebaseAuth.currentUser)
     },
     [loadProfile],

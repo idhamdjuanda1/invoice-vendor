@@ -1,7 +1,14 @@
 import type { Timestamp } from 'firebase/firestore'
 
 export type UserRole = 'super_admin' | 'user'
-export type TokenDurationType = 'ONE_HOUR' | 'ONE_DAY' | 'ONE_MONTH'
+export type TokenDurationType =
+  | 'ONE_HOUR'
+  | 'ONE_DAY'
+  | 'ONE_WEEK'
+  | 'ONE_MONTH'
+  | 'THREE_MONTHS'
+  | 'SIX_MONTHS'
+  | 'ONE_YEAR'
 export type PaymentStatus = 'BELUM_BAYAR' | 'DP' | 'CICILAN' | 'LUNAS'
 export type PaymentMethod = 'TRANSFER_BANK' | 'CASH' | 'QRIS' | 'OTHER'
 export type DiscountType = 'NOMINAL' | 'PERCENTAGE'
@@ -236,6 +243,11 @@ export type InvoiceRecord = {
   eventLocation: string
   additionalNote: string | null
   subtotal: number
+  discountType: DiscountType | null
+  discountValue: number
+  discountAmount: number
+  discountLabel: string | null
+  discountSourcePricelistId: string | null
   totalAmount: number
   totalPaid: number
   remainingAmount: number

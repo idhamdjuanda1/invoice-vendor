@@ -3,6 +3,7 @@ import { doc, getDoc, serverTimestamp, setDoc, Timestamp } from 'firebase/firest
 import { env } from '../../config/env'
 import { firestoreCollections } from '../../constants/firestore'
 import type { ActivationAccessState } from '../../features/auth/authTypes'
+import { FREE_TRIAL_TOKEN_ID } from '../../lib/activation'
 import { firestore } from '../../lib/firebase/client'
 import type { UserProfile } from '../../types/domain'
 
@@ -159,6 +160,13 @@ export async function validateVendorActivationAccess(profile: UserProfile | null
       code: 'expired',
       currentToken,
       message: 'Masa aktif token telah berakhir.',
+    })
+  }
+
+  if (currentToken === FREE_TRIAL_TOKEN_ID) {
+    return createActivationAccessState({
+      code: 'active',
+      currentToken,
     })
   }
 

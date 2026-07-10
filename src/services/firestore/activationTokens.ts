@@ -1,15 +1,22 @@
 import { createUserWithEmailAndPassword, deleteUser, updateProfile } from 'firebase/auth'
-import { doc, getDoc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { doc, getDoc, runTransaction, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore'
 import { firestoreCollections } from '../../constants/firestore'
 import type { RegisterInput } from '../../features/auth/authTypes'
+import { FREE_TRIAL_TOKEN_ID } from '../../lib/activation'
 import { firebaseAuth, firestore } from '../../lib/firebase/client'
 import type { TokenDurationType, UserProfile } from '../../types/domain'
 
 const durationInMs: Record<TokenDurationType, number> = {
   ONE_HOUR: 60 * 60 * 1000,
   ONE_DAY: 24 * 60 * 60 * 1000,
+  ONE_WEEK: 7 * 24 * 60 * 60 * 1000,
   ONE_MONTH: 30 * 24 * 60 * 60 * 1000,
+  THREE_MONTHS: 90 * 24 * 60 * 60 * 1000,
+  SIX_MONTHS: 180 * 24 * 60 * 60 * 1000,
+  ONE_YEAR: 365 * 24 * 60 * 60 * 1000,
 }
+
+const freeTrialDurationInMs = 24 * 60 * 60 * 1000
 
 function normalizeToken(code: string) {
   return code.trim().toUpperCase()
@@ -21,53 +28,24 @@ function getTimestampMs(value: unknown) {
   return 0
 }
 
-export async function registerVendorWithActivationToken(input: RegisterInput) {
-  const activationCode = normalizeToken(input.activationToken)
+export async function registerVendorWithFreeTrial(input: RegisterInput) {
   const credential = await createUserWithEmailAndPassword(firebaseAuth, input.email, input.password)
 
   try {
     await updateProfile(credential.user, { displayName: input.name })
-
-    await runTransaction(firestore, async (transaction) => {
-      const tokenRef = doc(firestore, firestoreCollections.activationTokens, activationCode)
-      const userRef = doc(firestore, firestoreCollections.users, credential.user.uid)
-      const tokenSnapshot = await transaction.get(tokenRef)
-
-      if (!tokenSnapshot.exists()) throw new Error('TOKEN_NOT_FOUND')
-
-      const token = tokenSnapshot.data()
-      const isUsed = Boolean(token.isUsed)
-      const expiresAt = getTimestampMs(token.expiresAt)
-      const durationType = token.durationType as TokenDurationType
-
-      if (isUsed) throw new Error('TOKEN_USED')
-      if (token.isActive === false || token.isRevoked === true || token.deletedAt) throw new Error('TOKEN_REVOKED')
-      if (!durationInMs[durationType]) throw new Error('TOKEN_INVALID_DURATION')
-      if (expiresAt <= Date.now()) throw new Error('TOKEN_EXPIRED')
-
-      const activationExpiresAt = Timestamp.fromMillis(Date.now() + durationInMs[durationType])
-
-      transaction.set(userRef, {
-        uid: credential.user.uid,
-        name: input.name,
-        email: input.email,
-        role: 'user',
-        isActive: true,
-        isSuspended: false,
-        activatedAt: serverTimestamp(),
-        activationExpiresAt,
-        activationTokenId: activationCode,
-        deletedAt: null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-
-      transaction.update(tokenRef, {
-        isUsed: true,
-        usedById: credential.user.uid,
-        usedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
+    await setDoc(doc(firestore, firestoreCollections.users, credential.user.uid), {
+      uid: credential.user.uid,
+      name: input.name.trim(),
+      email: input.email.trim().toLowerCase(),
+      role: 'user',
+      isActive: true,
+      isSuspended: false,
+      activatedAt: serverTimestamp(),
+      activationExpiresAt: Timestamp.fromMillis(Date.now() + freeTrialDurationInMs),
+      activationTokenId: FREE_TRIAL_TOKEN_ID,
+      deletedAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     })
   } catch (error) {
     await deleteUser(credential.user).catch(() => undefined)

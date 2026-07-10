@@ -67,7 +67,7 @@ export function LoginPage() {
           </Button>
         </form>
         <Link className="text-center text-sm font-semibold text-app-gold" to="/register">
-          Daftar dengan token aktivasi
+          Daftar dan coba gratis 1 hari
         </Link>
       </CardContent>
     </Card>

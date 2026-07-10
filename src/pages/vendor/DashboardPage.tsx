@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, CheckCircle2, FileText, Loader2, WalletCards } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock3, FileText, Loader2, WalletCards } from 'lucide-react'
 import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { StatCard } from '../../components/ui/StatCard'
 import { useAuth } from '../../features/auth/useAuth'
+import { FREE_TRIAL_TOKEN_ID, getRemainingActivationDays } from '../../lib/activation'
 import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate, toInputDate } from '../../lib/formatters/date'
 import { paymentStatusLabels } from '../../lib/formatters/invoice'
@@ -35,6 +36,7 @@ export function DashboardPage() {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const remainingActivationDays = getRemainingActivationDays(profile?.activationExpiresAt ?? null)
 
   useEffect(() => {
     async function loadDashboard() {
@@ -93,6 +95,32 @@ export function DashboardPage() {
       {errorMessage ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>
       ) : null}
+
+      <div className="flex flex-col gap-3 rounded-md border border-app-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-app-gold-soft text-app-text">
+            <Clock3 size={20} />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase text-neutral-500">Sisa Masa Aktif</p>
+            <p className="mt-1 text-xl font-bold text-app-text">
+              {remainingActivationDays > 0 ? `${remainingActivationDays} Hari` : 'Token telah berakhir'}
+            </p>
+            <p className="mt-1 text-sm text-neutral-500">
+              {remainingActivationDays > 0
+                ? profile?.activationTokenId === FREE_TRIAL_TOKEN_ID
+                  ? 'Free Trial aktif. Masukkan token perpanjangan setelah masa trial selesai.'
+                  : 'Akses aplikasi aktif sampai masa token berakhir.'
+                : 'Silakan melakukan perpanjangan agar seluruh fitur dapat digunakan kembali.'}
+            </p>
+          </div>
+        </div>
+        {remainingActivationDays > 0 && remainingActivationDays <= 7 ? (
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+            Hampir Habis
+          </span>
+        ) : null}
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard

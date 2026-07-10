@@ -299,6 +299,16 @@ export function InvoiceDetailPage() {
                   </div>
                   <div className="grid gap-2 rounded-md border border-app-border bg-app-muted p-4">
                     <div className="flex justify-between gap-4">
+                      <span>Subtotal</span>
+                      <strong>{formatCurrency(invoice.subtotal)}</strong>
+                    </div>
+                    {invoice.discountAmount > 0 ? (
+                      <div className="flex justify-between gap-4 text-app-danger">
+                        <span>{invoice.discountLabel || 'Potongan Harga'}</span>
+                        <strong>-{formatCurrency(invoice.discountAmount)}</strong>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between gap-4">
                       <span>Total Tagihan</span>
                       <strong>{formatCurrency(invoice.totalAmount)}</strong>
                     </div>

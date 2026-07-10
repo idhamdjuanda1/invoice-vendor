@@ -93,7 +93,8 @@ VITE_R2_LOGO_API_URL=
 Configure the Worker in `cloudflare-worker/wrangler.toml`, bind the `invoice-files` R2 bucket as `INVOICE_FILES`, and set:
 
 ```env
-FIREBASE_PROJECT_ID=invoice-vendor
+FIREBASE_PROJECT_ID=kuitansi---invoice
+FIREBASE_API_KEY=
 ```
 
 Uploaded logos are stored in R2 and served back through the Worker URL, so the R2 bucket itself does not need to be public.
@@ -106,6 +107,37 @@ Vendor logo uploads store the binary file in R2. Firestore only stores:
   "logoKey": "string | null"
 }
 ```
+
+### Automatic token reminders
+
+The same Cloudflare Worker runs every day at 08:00 WIB and sends token expiry reminders at H-7, H-3, and H-1. Add these values as Worker secrets, never to the React `.env.local` file:
+
+```text
+FIREBASE_CLIENT_EMAIL
+FIREBASE_PRIVATE_KEY
+WHATSAPP_ACCESS_TOKEN
+WHATSAPP_PHONE_NUMBER_ID
+WHATSAPP_TOKEN_REMINDER_TEMPLATE
+```
+
+Optional Worker variables:
+
+```text
+WHATSAPP_TEMPLATE_LANGUAGE=id
+WHATSAPP_GRAPH_API_VERSION=v23.0
+```
+
+Create an approved WhatsApp template whose body contains one parameter for the remaining day count, for example:
+
+```text
+Halo, masa aktif Invoice Vendor Anda akan berakhir dalam {{1}} hari.
+
+Silakan lakukan perpanjangan token agar aplikasi tetap dapat digunakan.
+
+Terima kasih.
+```
+
+The Firebase service account must be allowed to read `users` and `businessProfiles` and write `tokenReminderLogs`. Vendors without a WhatsApp number are skipped without stopping reminders for other users.
 
 
 ## Architecture

@@ -12,7 +12,6 @@ export type RegisterInput = {
   name: string
   email: string
   password: string
-  activationToken: string
 }
 
 export type ActivationAccessState = {

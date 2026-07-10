@@ -361,8 +361,8 @@ export function PricelistCreatePage() {
               type="checkbox"
             />
             <span>
-              <span className="block font-semibold">Tampilkan popup diskon</span>
-              <span className="mt-1 block text-neutral-500">Popup muncul di halaman publish untuk promo seperti deal bulan tertentu.</span>
+              <span className="block font-semibold">Menggunakan Diskon</span>
+              <span className="mt-1 block text-neutral-500">Diskon tampil di halaman publish dan dapat dipilih saat membuat invoice.</span>
             </span>
           </label>
           <div className="grid gap-4 md:grid-cols-[1fr_1fr_140px]">

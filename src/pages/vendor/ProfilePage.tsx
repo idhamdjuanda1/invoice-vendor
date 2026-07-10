@@ -283,6 +283,12 @@ export function ProfilePage() {
 
     if (!profile) return
 
+    if (!form.vendorName.trim()) {
+      setError('Nama usaha wajib diisi.')
+      setSuccess('')
+      return
+    }
+
     setError('')
     setSuccess('')
     setIsSaving(true)
@@ -290,11 +296,20 @@ export function ProfilePage() {
     try {
       let logoUrl = form.logoUrl ?? null
       let logoKey = form.logoKey ?? null
+      let logoUploadError = ''
 
       if (logoFile) {
-        const uploadedLogo = await uploadVendorLogoToR2(profile.uid, logoFile, form.logoKey)
-        logoUrl = uploadedLogo.logoUrl
-        logoKey = uploadedLogo.logoKey
+        try {
+          const uploadedLogo = await uploadVendorLogoToR2(profile.uid, logoFile, form.logoKey)
+          logoUrl = uploadedLogo.logoUrl
+          logoKey = uploadedLogo.logoKey
+        } catch (uploadError) {
+          if (import.meta.env.DEV) {
+            console.error('Vendor logo upload failed.', uploadError)
+          }
+
+          logoUploadError = getFriendlyAuthError(uploadError)
+        }
       }
 
       const savedProfile = await saveBusinessProfile(profile.uid, {
@@ -314,9 +329,13 @@ export function ProfilePage() {
         logoKey: savedProfile?.logoKey ?? logoKey,
         signatureUrl: savedProfile?.signatureUrl ?? form.signatureUrl ?? null,
       })
-      setLogoFile(null)
+      setLogoFile(logoUploadError ? logoFile : null)
       setLogoPreviewUrl(savedProfile?.logoUrl ?? logoUrl)
-      setSuccess('Profil usaha berhasil disimpan.')
+      setSuccess(
+        logoUploadError
+          ? `Profil usaha berhasil disimpan, tetapi logo belum tersimpan: ${logoUploadError}`
+          : 'Profil usaha berhasil disimpan.',
+      )
     } catch (saveError) {
       if (import.meta.env.DEV) {
         console.error('Vendor profile save failed.', saveError)
@@ -330,6 +349,12 @@ export function ProfilePage() {
 
   async function handleRemoveLogo() {
     if (!profile) return
+
+    if (!form.vendorName.trim()) {
+      setError('Nama usaha wajib diisi.')
+      setSuccess('')
+      return
+    }
 
     setError('')
     setSuccess('')

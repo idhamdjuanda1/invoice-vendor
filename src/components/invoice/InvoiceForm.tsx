@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Loader2, Save } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Card, CardContent, CardHeader } from '../ui/Card'
 import { Input } from '../ui/Input'
+import { getFriendlyAuthError } from '../../features/auth/authErrors'
 import { useAuth } from '../../features/auth/useAuth'
 import { formatCurrency, parseCurrencyInput } from '../../lib/formatters/currency'
 import { paymentMethodLabels, paymentStatusLabels } from '../../lib/formatters/invoice'
@@ -11,7 +12,16 @@ import { toInputDate } from '../../lib/formatters/date'
 import { listClients, type ClientInput } from '../../services/firestore/clients'
 import { createInvoice, updateInvoice, type InvoiceMutationInput } from '../../services/firestore/invoices'
 import { listServicePackages } from '../../services/firestore/packages'
-import type { ClientRecord, InvoiceRecord, PaymentMethod, PaymentStatus, ServicePackage } from '../../types/domain'
+import { listPricelists } from '../../services/firestore/pricelists'
+import type {
+  ClientRecord,
+  DiscountType,
+  InvoiceRecord,
+  PaymentMethod,
+  PaymentStatus,
+  PricelistRecord,
+  ServicePackage,
+} from '../../types/domain'
 
 type InvoiceFormProps = {
   invoice?: InvoiceRecord
@@ -56,7 +66,7 @@ function getErrorMessage(error: unknown) {
     INVOICE_NOT_FOUND: 'Invoice tidak ditemukan.',
   }
 
-  return messages[message] ?? 'Invoice belum bisa disimpan. Periksa data lalu coba lagi.'
+  return messages[message] ?? getFriendlyAuthError(error)
 }
 
 export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
@@ -64,6 +74,7 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
   const navigate = useNavigate()
   const [clients, setClients] = useState<ClientRecord[]>([])
   const [packages, setPackages] = useState<ServicePackage[]>([])
+  const [pricelists, setPricelists] = useState<PricelistRecord[]>([])
   const [clientMode, setClientMode] = useState<'existing' | 'new'>(invoice ? 'existing' : 'existing')
   const [clientId, setClientId] = useState(invoice?.clientId ?? '')
   const [existingClient, setExistingClient] = useState<ClientInput>(invoiceClientToInput(invoice))
@@ -72,6 +83,17 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
   const [eventLocation, setEventLocation] = useState(invoice?.eventLocation ?? '')
   const [additionalNote, setAdditionalNote] = useState(invoice?.additionalNote ?? '')
   const [selectedPackageIds, setSelectedPackageIds] = useState(invoice?.items.map((item) => item.packageId) ?? [])
+  const [discountMode, setDiscountMode] = useState<'NONE' | 'PRICELIST' | 'MANUAL'>(
+    invoice?.discountType === 'PERCENTAGE'
+      ? 'PRICELIST'
+      : invoice?.discountType === 'NOMINAL'
+        ? 'MANUAL'
+        : 'NONE',
+  )
+  const [discountPricelistId, setDiscountPricelistId] = useState(invoice?.discountSourcePricelistId ?? '')
+  const [manualDiscountInput, setManualDiscountInput] = useState(
+    invoice?.discountType === 'NOMINAL' && invoice.discountValue > 0 ? String(invoice.discountValue) : '',
+  )
   const [paymentAmountInput, setPaymentAmountInput] = useState(
     invoice?.totalPaid ? String(invoice.totalPaid) : '',
   )
@@ -89,12 +111,14 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
       setErrorMessage('')
 
       try {
-        const [clientList, packageList] = await Promise.all([
+        const [clientList, packageList, pricelistList] = await Promise.all([
           listClients(profile.uid),
           listServicePackages(profile.uid),
+          listPricelists(profile.uid),
         ])
         setClients(clientList)
         setPackages(packageList.filter((servicePackage) => servicePackage.isActive))
+        setPricelists(pricelistList)
 
         if (!invoice && clientList.length === 0) {
           setClientMode('new')
@@ -131,7 +155,33 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
     () => packages.filter((servicePackage) => selectedPackageIds.includes(servicePackage.id)),
     [packages, selectedPackageIds],
   )
-  const totalAmount = selectedPackages.reduce((sum, servicePackage) => sum + servicePackage.price, 0)
+  const subtotal = selectedPackages.reduce((sum, servicePackage) => sum + servicePackage.price, 0)
+  const discountPricelists = useMemo(
+    () =>
+      pricelists.filter((pricelist) => {
+        const isCurrentInvoiceDiscount = pricelist.id === invoice?.discountSourcePricelistId
+        if ((!pricelist.discountIsActive || pricelist.discountPercentage <= 0) && !isCurrentInvoiceDiscount) {
+          return false
+        }
+        if (selectedPackageIds.length === 0 || pricelist.id === discountPricelistId) return true
+        return pricelist.items.some((item) => selectedPackageIds.includes(item.packageId))
+      }),
+    [discountPricelistId, invoice?.discountSourcePricelistId, pricelists, selectedPackageIds],
+  )
+  const selectedDiscountPricelist = pricelists.find((pricelist) => pricelist.id === discountPricelistId)
+  const pricelistDiscountPercentage = selectedDiscountPricelist?.discountPercentage
+    ?? (invoice?.discountType === 'PERCENTAGE' ? invoice.discountValue : 0)
+  const discountType: DiscountType | null =
+    discountMode === 'PRICELIST' ? 'PERCENTAGE' : discountMode === 'MANUAL' ? 'NOMINAL' : null
+  const discountValue =
+    discountMode === 'PRICELIST' ? pricelistDiscountPercentage : parseCurrencyInput(manualDiscountInput)
+  const discountAmount =
+    discountType === 'PERCENTAGE'
+      ? Math.min(Math.round(subtotal * (Math.min(Math.max(discountValue, 0), 100) / 100)), subtotal)
+      : discountType === 'NOMINAL'
+        ? Math.min(Math.max(discountValue, 0), subtotal)
+        : 0
+  const totalAmount = Math.max(subtotal - discountAmount, 0)
   const paymentAmount = Math.min(parseCurrencyInput(paymentAmountInput), totalAmount)
   const remainingAmount = Math.max(totalAmount - paymentAmount, 0)
   const paymentStatus: PaymentStatus =
@@ -141,6 +191,12 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
     setSelectedPackageIds((current) =>
       current.includes(packageId) ? current.filter((id) => id !== packageId) : [...current, packageId],
     )
+  }
+
+  function usePricelistDiscount() {
+    const nextPricelistId = discountPricelistId || discountPricelists[0]?.id || ''
+    setDiscountPricelistId(nextPricelistId)
+    setDiscountMode('PRICELIST')
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -160,6 +216,15 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
       eventLocation,
       additionalNote,
       packageIds: selectedPackageIds,
+      discountType,
+      discountValue,
+      discountLabel:
+        discountMode === 'PRICELIST'
+          ? selectedDiscountPricelist?.title || invoice?.discountLabel || 'Diskon pricelist'
+          : discountMode === 'MANUAL'
+            ? 'Potongan harga / negosiasi'
+            : '',
+      discountSourcePricelistId: discountMode === 'PRICELIST' ? discountPricelistId : '',
       paymentAmount,
       paymentMethod,
     }
@@ -368,6 +433,89 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
 
       <Card>
         <CardHeader>
+          <h2 className="text-base font-semibold">Diskon & Potongan Harga</h2>
+          <p className="mt-1 text-sm text-neutral-500">Gunakan promo Pricelist atau masukkan harga negosiasi secara manual.</p>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button
+              onClick={() => setDiscountMode('NONE')}
+              type="button"
+              variant={discountMode === 'NONE' ? 'primary' : 'secondary'}
+            >
+              Tanpa Potongan
+            </Button>
+            <Button
+              disabled={discountPricelists.length === 0}
+              onClick={usePricelistDiscount}
+              type="button"
+              variant={discountMode === 'PRICELIST' ? 'primary' : 'secondary'}
+            >
+              Diskon Pricelist
+            </Button>
+            <Button
+              onClick={() => setDiscountMode('MANUAL')}
+              type="button"
+              variant={discountMode === 'MANUAL' ? 'primary' : 'secondary'}
+            >
+              Potongan Manual
+            </Button>
+          </div>
+
+          {discountMode === 'PRICELIST' ? (
+            <label className="grid gap-2 text-sm font-medium text-app-text">
+              Pricelist dengan Diskon
+              <select
+                className="min-h-12 rounded-md border border-app-border bg-white px-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:min-h-11 sm:text-sm"
+                onChange={(event) => setDiscountPricelistId(event.target.value)}
+                value={discountPricelistId}
+              >
+                <option value="">Pilih pricelist</option>
+                {discountPricelists.map((pricelist) => (
+                  <option key={pricelist.id} value={pricelist.id}>
+                    {pricelist.title} - {pricelist.discountPercentage}%
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {discountMode === 'MANUAL' ? (
+            <Input
+              hint="Masukkan nominal potongan hasil negosiasi dengan klien."
+              inputMode="numeric"
+              label="Potongan Harga"
+              onChange={(event) => setManualDiscountInput(event.target.value)}
+              placeholder="Contoh: 300000"
+              value={manualDiscountInput}
+            />
+          ) : null}
+
+          {discountPricelists.length === 0 && discountMode !== 'MANUAL' ? (
+            <p className="text-sm text-neutral-500">
+              Belum ada Pricelist dengan opsi Menggunakan Diskon. Potongan manual tetap bisa digunakan.
+            </p>
+          ) : null}
+
+          <div className="grid gap-3 rounded-md bg-app-muted p-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-neutral-500">Subtotal</p>
+              <p className="mt-1 font-bold">{formatCurrency(subtotal)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-500">Potongan</p>
+              <p className="mt-1 font-bold text-app-danger">-{formatCurrency(discountAmount)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-500">Grand Total</p>
+              <p className="mt-1 font-bold">{formatCurrency(totalAmount)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <h2 className="text-base font-semibold">Pembayaran</h2>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
@@ -393,7 +541,7 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
             </select>
           </label>
           <div className="rounded-md bg-app-muted p-4">
-            <p className="text-xs text-neutral-500">Total Tagihan</p>
+            <p className="text-xs text-neutral-500">Grand Total</p>
             <p className="mt-1 text-lg font-bold">{formatCurrency(totalAmount)}</p>
           </div>
           <div className="rounded-md bg-app-muted p-4">

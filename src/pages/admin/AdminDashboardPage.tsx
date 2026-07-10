@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, Loader2, Ticket, UserX, Users } from 'luci
 import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { StatCard } from '../../components/ui/StatCard'
+import { getUserActivationStatus } from '../../lib/activation'
 import {
   formatFirestoreDate,
   getActivationTokenStatus,
@@ -39,8 +40,8 @@ export function AdminDashboardPage() {
 
   const summary = useMemo(() => {
     const vendorUsers = users.filter((user) => user.role !== 'super_admin')
-    const activeUsers = vendorUsers.filter((user) => user.isActive && !user.isSuspended).length
-    const suspendedUsers = vendorUsers.filter((user) => user.isSuspended || !user.isActive).length
+    const activeUsers = vendorUsers.filter((user) => getUserActivationStatus(user) !== 'inactive').length
+    const suspendedUsers = vendorUsers.filter((user) => getUserActivationStatus(user) === 'inactive').length
     const availableTokens = tokens.filter((token) => getActivationTokenStatus(token) === 'Belum digunakan').length
     const usedTokens = tokens.filter((token) => token.isUsed).length
     const expiredTokens = tokens.filter((token) => getActivationTokenStatus(token) === 'Expired').length

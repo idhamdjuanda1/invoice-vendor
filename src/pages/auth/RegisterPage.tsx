@@ -12,7 +12,6 @@ export function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [activationToken, setActivationToken] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -30,8 +29,8 @@ export function RegisterPage() {
     setIsSubmitting(true)
 
     try {
-      await registerVendor({ name, email, password, activationToken })
-      setSuccess('Akun vendor berhasil dibuat dan sesi sudah aktif.')
+      await registerVendor({ name, email, password })
+      setSuccess('Akun vendor berhasil dibuat dengan Free Trial 1 hari.')
     } catch (registerError) {
       setError(getFriendlyAuthError(registerError))
     } finally {
@@ -44,7 +43,7 @@ export function RegisterPage() {
       <CardHeader>
         <h1 className="text-2xl font-bold">Registrasi Vendor</h1>
         <p className="mt-2 text-sm text-neutral-600">
-          Vendor wajib memakai token aktivasi yang dibuat Super Admin.
+          Buat akun dan gunakan seluruh fitur gratis selama 1 hari. Token baru diperlukan setelah trial berakhir.
         </p>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -87,14 +86,6 @@ export function RegisterPage() {
             required
             type="password"
             value={confirmPassword}
-          />
-          <Input
-            id="activationToken"
-            label="Token aktivasi"
-            onChange={(event) => setActivationToken(event.target.value)}
-            placeholder="Kode token dari Super Admin"
-            required
-            value={activationToken}
           />
           {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-app-danger">{error}</p> : null}
           {success ? <p className="rounded-md bg-green-50 p-3 text-sm text-app-success">{success}</p> : null}

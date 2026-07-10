@@ -1,7 +1,6 @@
 {
   "projects": {
-    "default": "invoice-vendor",
-    "y": "invoice-vendor"
+    "default": "invoice-vendor"
   },
   "targets": {},
   "etags": {}

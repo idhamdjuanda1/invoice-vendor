@@ -16,13 +16,21 @@ import type { ActivationToken, TokenDurationType, UserProfile } from '../../type
 const durationLabels: Record<TokenDurationType, string> = {
   ONE_HOUR: '1 jam',
   ONE_DAY: '1 hari',
+  ONE_WEEK: '1 minggu',
   ONE_MONTH: '1 bulan',
+  THREE_MONTHS: '3 bulan',
+  SIX_MONTHS: '6 bulan',
+  ONE_YEAR: '1 tahun',
 }
 
 const durationInMs: Record<TokenDurationType, number> = {
   ONE_HOUR: 60 * 60 * 1000,
   ONE_DAY: 24 * 60 * 60 * 1000,
+  ONE_WEEK: 7 * 24 * 60 * 60 * 1000,
   ONE_MONTH: 30 * 24 * 60 * 60 * 1000,
+  THREE_MONTHS: 90 * 24 * 60 * 60 * 1000,
+  SIX_MONTHS: 180 * 24 * 60 * 60 * 1000,
+  ONE_YEAR: 365 * 24 * 60 * 60 * 1000,
 }
 
 function generateTokenCode() {
@@ -51,7 +59,7 @@ function buildActivationToken(id: string, data: Record<string, unknown>): Activa
 }
 
 export function getActivationTokenDurationLabel(durationType: TokenDurationType) {
-  return durationLabels[durationType]
+  return durationLabels[durationType] ?? durationType
 }
 
 export function getActivationTokenStatus(token: ActivationToken) {

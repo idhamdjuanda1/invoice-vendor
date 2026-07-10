@@ -16,9 +16,12 @@ import { listUsersForAdmin } from '../../services/firestore/adminUsers'
 import type { ActivationToken, TokenDurationType } from '../../types/domain'
 
 const durationOptions: Array<{ label: string; value: TokenDurationType }> = [
-  { label: '1 jam', value: 'ONE_HOUR' },
-  { label: '1 hari', value: 'ONE_DAY' },
+  { label: '1 Hari (Trial)', value: 'ONE_DAY' },
+  { label: '1 Minggu', value: 'ONE_WEEK' },
   { label: '1 bulan', value: 'ONE_MONTH' },
+  { label: '3 Bulan', value: 'THREE_MONTHS' },
+  { label: '6 Bulan', value: 'SIX_MONTHS' },
+  { label: '1 Tahun', value: 'ONE_YEAR' },
 ]
 
 export function AdminTokenPage() {
@@ -87,7 +90,7 @@ export function AdminTokenPage() {
     <div className="grid gap-6">
       <PageHeader
         title="Token Aktivasi"
-        description="Buat token 1 jam, 1 hari, atau 1 bulan, lalu pantau status digunakan, belum digunakan, dan expired."
+        description="Buat token mulai 1 hari sampai 1 tahun, lalu pantau status digunakan, belum digunakan, dan expired."
         actions={
           <Button disabled={isLoading} icon={<RefreshCw size={16} />} onClick={() => void loadTokens()} variant="secondary">
             Refresh

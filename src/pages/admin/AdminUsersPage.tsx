@@ -3,6 +3,12 @@ import { CheckCircle2, Loader2, RefreshCw, UserX } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
+import {
+  getRemainingActivationDays,
+  getUserActivationStatus,
+  getUserActivationStatusLabel,
+  type UserActivationStatus,
+} from '../../lib/activation'
 import { formatFirestoreDate } from '../../services/firestore/activationTokenAdmin'
 import { listUsersForAdmin, setUserSuspended } from '../../services/firestore/adminUsers'
 import type { UserProfile } from '../../types/domain'
@@ -11,6 +17,29 @@ function getUserStatus(user: UserProfile) {
   if (user.isSuspended) return 'Nonaktif'
   if (!user.isActive) return 'Belum aktif'
   return 'Aktif'
+}
+
+const tokenStatusStyles: Record<UserActivationStatus, string> = {
+  active: 'border-green-200 bg-green-50 text-green-700',
+  expiring: 'border-amber-200 bg-amber-50 text-amber-700',
+  inactive: 'border-red-200 bg-red-50 text-red-700',
+}
+
+function TokenStatusBadge({ user }: { user: UserProfile }) {
+  const status = getUserActivationStatus(user)
+  const remainingDays = getRemainingActivationDays(user.activationExpiresAt)
+  const detail = user.role === 'super_admin'
+    ? 'Tanpa batas'
+    : status === 'inactive'
+      ? null
+      : `${remainingDays} hari`
+
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${tokenStatusStyles[status]}`}>
+      <span className="size-2 rounded-full bg-current" />
+      {getUserActivationStatusLabel(status)}{detail ? ` - ${detail}` : ''}
+    </span>
+  )
 }
 
 export function AdminUsersPage() {
@@ -105,9 +134,7 @@ export function AdminUsersPage() {
                         <p className="truncate text-base font-bold">{user.name || user.email}</p>
                         <p className="mt-1 truncate text-sm text-neutral-500">{user.email}</p>
                       </div>
-                      <span className="shrink-0 rounded-full bg-app-gold-soft px-3 py-1 text-xs font-semibold">
-                        {getUserStatus(user)}
-                      </span>
+                      <TokenStatusBadge user={user} />
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-app-muted p-3 text-sm">
                       <div>
@@ -117,6 +144,10 @@ export function AdminUsersPage() {
                       <div>
                         <p className="text-xs text-neutral-500">Expired</p>
                         <p className="mt-1 font-bold">{formatFirestoreDate(user.activationExpiresAt)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Status Akun</p>
+                        <p className="mt-1 font-bold">{getUserStatus(user)}</p>
                       </div>
                     </div>
                     <Button
@@ -133,13 +164,14 @@ export function AdminUsersPage() {
               </div>
 
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[860px] text-left text-sm">
+                <table className="w-full min-w-[1080px] text-left text-sm">
                   <thead className="border-b border-app-border bg-app-muted text-xs uppercase tracking-wide text-neutral-500">
                     <tr>
                       <th className="px-5 py-3">Nama</th>
                       <th className="px-5 py-3">Email</th>
                       <th className="px-5 py-3">Role</th>
                       <th className="px-5 py-3">Status</th>
+                      <th className="px-5 py-3">Status Token</th>
                       <th className="px-5 py-3">Expired</th>
                       <th className="px-5 py-3">Token</th>
                       <th className="px-5 py-3">Aksi</th>
@@ -152,6 +184,7 @@ export function AdminUsersPage() {
                         <td className="px-5 py-4">{user.email}</td>
                         <td className="px-5 py-4">{user.role === 'super_admin' ? 'Super Admin' : 'Vendor'}</td>
                         <td className="px-5 py-4">{getUserStatus(user)}</td>
+                        <td className="px-5 py-4"><TokenStatusBadge user={user} /></td>
                         <td className="px-5 py-4">{formatFirestoreDate(user.activationExpiresAt)}</td>
                         <td className="px-5 py-4 font-mono text-xs">{user.activationTokenId ?? '-'}</td>
                         <td className="px-5 py-4">

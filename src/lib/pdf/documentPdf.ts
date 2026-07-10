@@ -215,12 +215,19 @@ export function generateInvoicePdf(params: {
     y += rowHeight
   })
 
-  y = ensurePage(doc, y + 8, 45)
-  drawAmountSummary(doc, y, [
+  const amountRows: Array<[string, string]> = [
+    ['Subtotal', formatCurrency(invoice.subtotal)],
+  ]
+  if (invoice.discountAmount > 0) {
+    amountRows.push([invoice.discountLabel || 'Potongan Harga', `-${formatCurrency(invoice.discountAmount)}`])
+  }
+  amountRows.push(
     ['Total Tagihan', formatCurrency(invoice.totalAmount)],
     ['Sudah Dibayar', formatCurrency(invoice.totalPaid)],
     ['Sisa Pembayaran', formatCurrency(invoice.remainingAmount)],
-  ])
+  )
+  y = ensurePage(doc, y + 8, amountRows.length * 10 + 12)
+  drawAmountSummary(doc, y, amountRows)
   if (businessProfile?.bankAccountNumber) {
     wrappedText(
       doc,
@@ -231,7 +238,7 @@ export function generateInvoicePdf(params: {
       { size: 9, color: gray, lineHeight: 5 },
     )
   }
-  y += 42
+  y += amountRows.length * 10 + 12
 
   if (payments.length > 0) {
     y = ensurePage(doc, y, 20)

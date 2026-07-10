@@ -1,6 +1,7 @@
-type Env = {
+import { sendTokenExpiryReminders, type TokenReminderEnv } from './tokenReminders'
+
+type Env = TokenReminderEnv & {
   INVOICE_FILES: R2Bucket
-  FIREBASE_PROJECT_ID: string
   FIREBASE_API_KEY: string
   ALLOWED_ORIGINS: string
 }
@@ -315,5 +316,8 @@ export default {
       console.error('Vendor file R2 worker failed', error)
       return jsonResponse({ message: getErrorMessage(error) }, 400, corsHeaders)
     }
+  },
+  scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext) {
+    context.waitUntil(sendTokenExpiryReminders(env))
   },
 }

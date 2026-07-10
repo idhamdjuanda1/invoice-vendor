@@ -7,6 +7,8 @@ export function getFriendlyAuthError(error: unknown) {
   if (code.includes('auth/weak-password')) return 'Password minimal 8 karakter.'
   if (code.includes('auth/invalid-email')) return 'Format email tidak valid.'
   if (code.includes('permission-denied')) return 'Akses Firestore ditolak. Periksa rules dan role akun.'
+  if (code.includes('invalid-argument')) return 'Data profil terlalu besar atau formatnya tidak valid. Coba hapus/ulang tanda tangan atau gunakan logo lebih kecil.'
+  if (code.includes('unavailable')) return 'Koneksi ke Firestore sedang bermasalah. Coba simpan ulang beberapa saat lagi.'
   if (message === 'TOKEN_NOT_FOUND') return 'Token aktivasi tidak ditemukan.'
   if (message === 'TOKEN_USED') return 'Token aktivasi sudah digunakan.'
   if (message === 'TOKEN_EXPIRED') return 'Token aktivasi sudah expired.'
@@ -24,6 +26,7 @@ export function getFriendlyAuthError(error: unknown) {
   if (message === 'INVALID_FILE_TYPE') return 'Format file tidak didukung.'
   if (message === 'FILE_TOO_LARGE') return 'Ukuran file terlalu besar.'
   if (message === 'R2_LOGO_API_URL_MISSING') return 'URL API logo R2 belum dikonfigurasi.'
+  if (message.includes('document') && message.includes('maximum')) return 'Data profil terlalu besar. Coba hapus/ulang tanda tangan atau gunakan logo lebih kecil.'
   if (message.includes('Ukuran foto pricelist')) return message
   if (message.includes('Ukuran logo')) return message
   if (message.includes('File vendor')) return message

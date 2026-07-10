@@ -41,29 +41,27 @@ service cloud.firestore {
         && request.resource.data.role == 'super_admin';
     }
 
-    function isVendorActivationProfileCreate(userId) {
+    function isVendorFreeTrialProfileCreate(userId) {
       return isOwner(userId)
         && request.resource.data.role == 'user'
         && request.resource.data.isActive == true
         && request.resource.data.isSuspended == false
-        && request.resource.data.activationTokenId is string
-        && request.resource.data.activatedAt is timestamp
-        && request.resource.data.activationExpiresAt is timestamp;
+        && request.resource.data.activationTokenId == 'FREE_TRIAL'
+        && request.resource.data.activatedAt == request.time
+        && request.resource.data.activationExpiresAt is timestamp
+        && request.resource.data.activationExpiresAt > request.time
+        && request.resource.data.activationExpiresAt <= request.time + duration.value(25, 'h')
+        && request.resource.data.deletedAt == null
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
     }
 
-    function isActivationTokenConsume(tokenCode) {
+    function isActivationTokenConsume() {
       return signedIn()
         && resource.data.isUsed == false
         && request.resource.data.isUsed == true
         && request.resource.data.usedById == request.auth.uid
         && request.resource.data.usedAt is timestamp
-        && request.resource.data.code == resource.data.code
-        && request.resource.data.durationType == resource.data.durationType
-        && request.resource.data.durationLabel == resource.data.durationLabel
-        && request.resource.data.expiresAt == resource.data.expiresAt
-        && request.resource.data.createdById == resource.data.createdById
-        && request.resource.data.createdByEmail == resource.data.createdByEmail
-        && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'isUsed',
           'usedById',
@@ -97,10 +95,22 @@ service cloud.firestore {
       return request.resource.data.userId == resource.data.userId;
     }
 
+
+    function writesOwnProfileDocument(profileId) {
+      return signedIn()
+        && profileId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    function readsOwnSequenceDocument(sequenceId) {
+      return signedIn()
+        && sequenceId.matches(request.auth.uid + '_[0-9]{6}');
+    }
+
     match /users/{userId} {
       allow read: if isSuperAdmin() || isOwner(userId);
       allow create: if isBootstrapSuperAdminCreate(userId)
-        || isVendorActivationProfileCreate(userId);
+        || isVendorFreeTrialProfileCreate(userId);
       allow update: if isSuperAdmin() || isVendorActivationRenewal(userId);
       allow delete: if false;
     }
@@ -114,25 +124,25 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if isSuperAdmin();
       allow create: if isSuperAdmin();
-      allow update: if isSuperAdmin() || isActivationTokenConsume(tokenCode);
+      allow update: if isSuperAdmin() || isActivationTokenConsume();
       allow delete: if false;
     }
 
     match /businessProfiles/{profileId} {
       allow read: if isSuperAdmin() || (signedIn() && profileId == request.auth.uid) || isOwner(resource.data.userId);
       allow create: if isSuperAdmin()
-        || (signedIn() && profileId == request.auth.uid && isOwner(request.resource.data.userId));
+        || writesOwnProfileDocument(profileId);
       allow update: if isSuperAdmin()
-        || (signedIn() && profileId == request.auth.uid && isOwner(resource.data.userId) && keepsOwner());
+        || writesOwnProfileDocument(profileId);
       allow delete: if false;
     }
 
     match /publicVendorProfiles/{profileId} {
       allow read: if true;
       allow create: if isSuperAdmin()
-        || (signedIn() && profileId == request.auth.uid && isOwner(request.resource.data.userId));
+        || writesOwnProfileDocument(profileId);
       allow update: if isSuperAdmin()
-        || (signedIn() && profileId == request.auth.uid && isOwner(resource.data.userId) && keepsOwner());
+        || writesOwnProfileDocument(profileId);
       allow delete: if false;
     }
 
@@ -165,14 +175,14 @@ service cloud.firestore {
     }
 
     match /invoiceSequences/{sequenceId} {
-      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId) || readsOwnSequenceDocument(sequenceId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || isOwner(resource.data.userId);
       allow delete: if false;
     }
 
     match /receiptSequences/{sequenceId} {
-      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId) || readsOwnSequenceDocument(sequenceId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || isOwner(resource.data.userId);
       allow delete: if false;
@@ -235,6 +245,11 @@ service cloud.firestore {
     match /auditLogs/{auditLogId} {
       allow read, create: if isSuperAdmin();
       allow update, delete: if false;
+    }
+
+    match /tokenReminderLogs/{reminderLogId} {
+      allow read: if isSuperAdmin();
+      allow create, update, delete: if false;
     }
   }
 }

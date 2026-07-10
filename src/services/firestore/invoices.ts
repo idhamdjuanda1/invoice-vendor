@@ -16,6 +16,7 @@ import { getPaymentPercentage, getPaymentStatus } from '../../lib/formatters/inv
 import { firestore } from '../../lib/firebase/client'
 import type {
   ClientRecord,
+  DiscountType,
   InvoicePackageItem,
   InvoicePaymentEntry,
   InvoiceRecord,
@@ -36,6 +37,10 @@ export type InvoiceMutationInput = {
   eventLocation: string
   additionalNote: string
   packageIds: string[]
+  discountType: DiscountType | null
+  discountValue: number
+  discountLabel: string
+  discountSourcePricelistId: string
   paymentAmount: number
   paymentMethod: PaymentMethod
 }
@@ -46,6 +51,9 @@ export type InvoiceMutationDependencies = {
 }
 
 function buildInvoiceRecord(id: string, data: Record<string, unknown>): InvoiceRecord {
+  const subtotal = Number(data.subtotal ?? 0)
+  const totalAmount = Number(data.totalAmount ?? subtotal)
+
   return {
     id,
     userId: String(data.userId ?? ''),
@@ -59,8 +67,17 @@ function buildInvoiceRecord(id: string, data: Record<string, unknown>): InvoiceR
     eventDate: (data.eventDate as InvoiceRecord['eventDate']) ?? null,
     eventLocation: String(data.eventLocation ?? ''),
     additionalNote: typeof data.additionalNote === 'string' ? data.additionalNote : null,
-    subtotal: Number(data.subtotal ?? 0),
-    totalAmount: Number(data.totalAmount ?? 0),
+    subtotal,
+    discountType:
+      data.discountType === 'NOMINAL' || data.discountType === 'PERCENTAGE'
+        ? data.discountType
+        : null,
+    discountValue: Number(data.discountValue ?? 0),
+    discountAmount: Number(data.discountAmount ?? Math.max(subtotal - totalAmount, 0)),
+    discountLabel: typeof data.discountLabel === 'string' ? data.discountLabel : null,
+    discountSourcePricelistId:
+      typeof data.discountSourcePricelistId === 'string' ? data.discountSourcePricelistId : null,
+    totalAmount,
     totalPaid: Number(data.totalPaid ?? 0),
     remainingAmount: Number(data.remainingAmount ?? 0),
     paymentPercentage: Number(data.paymentPercentage ?? 0),
@@ -121,7 +138,17 @@ function normalizeInvoiceInput(input: InvoiceMutationInput, dependencies: Invoic
     totalPrice: Number(servicePackage.price),
   }))
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
-  const paidAmount = Math.min(Math.max(Number(input.paymentAmount) || 0, 0), subtotal)
+  const rawDiscountValue = Math.max(Number(input.discountValue) || 0, 0)
+  const discountValue =
+    input.discountType === 'PERCENTAGE' ? Math.min(rawDiscountValue, 100) : rawDiscountValue
+  const discountAmount =
+    input.discountType === 'PERCENTAGE'
+      ? Math.round(subtotal * (discountValue / 100))
+      : input.discountType === 'NOMINAL'
+        ? Math.min(discountValue, subtotal)
+        : 0
+  const totalAmount = Math.max(subtotal - discountAmount, 0)
+  const paidAmount = Math.min(Math.max(Number(input.paymentAmount) || 0, 0), totalAmount)
   const initialPayment =
     paidAmount > 0
       ? {
@@ -136,11 +163,19 @@ function normalizeInvoiceInput(input: InvoiceMutationInput, dependencies: Invoic
     client,
     items,
     subtotal,
-    totalAmount: subtotal,
+    discountType: discountAmount > 0 ? input.discountType : null,
+    discountValue: discountAmount > 0 ? discountValue : 0,
+    discountAmount,
+    discountLabel: discountAmount > 0 ? input.discountLabel.trim() || 'Potongan harga' : null,
+    discountSourcePricelistId:
+      discountAmount > 0 && input.discountType === 'PERCENTAGE'
+        ? input.discountSourcePricelistId.trim() || null
+        : null,
+    totalAmount,
     totalPaid: paidAmount,
-    remainingAmount: Math.max(subtotal - paidAmount, 0),
-    paymentPercentage: getPaymentPercentage(subtotal, paidAmount),
-    paymentStatus: getPaymentStatus(subtotal, paidAmount, initialPayment ? 1 : 0),
+    remainingAmount: Math.max(totalAmount - paidAmount, 0),
+    paymentPercentage: getPaymentPercentage(totalAmount, paidAmount),
+    paymentStatus: getPaymentStatus(totalAmount, paidAmount, initialPayment ? 1 : 0),
     initialPayment,
   }
 }
@@ -218,6 +253,11 @@ export async function createInvoice(
       eventLocation: input.eventLocation.trim(),
       additionalNote: input.additionalNote.trim() || null,
       subtotal: normalized.subtotal,
+      discountType: normalized.discountType,
+      discountValue: normalized.discountValue,
+      discountAmount: normalized.discountAmount,
+      discountLabel: normalized.discountLabel,
+      discountSourcePricelistId: normalized.discountSourcePricelistId,
       totalAmount: normalized.totalAmount,
       totalPaid: normalized.totalPaid,
       remainingAmount: normalized.remainingAmount,
@@ -291,6 +331,11 @@ export async function updateInvoice(
     eventLocation: input.eventLocation.trim(),
     additionalNote: input.additionalNote.trim() || null,
     subtotal: normalized.subtotal,
+    discountType: normalized.discountType,
+    discountValue: normalized.discountValue,
+    discountAmount: normalized.discountAmount,
+    discountLabel: normalized.discountLabel,
+    discountSourcePricelistId: normalized.discountSourcePricelistId,
     totalAmount: normalized.totalAmount,
     totalPaid,
     remainingAmount,
