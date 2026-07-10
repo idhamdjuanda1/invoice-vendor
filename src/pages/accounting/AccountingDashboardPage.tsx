@@ -108,6 +108,18 @@ type LedgerRow = {
   balance: number
 }
 
+type AccountBreakdown = {
+  opening: number
+  invoiceIncome: number
+  manualIncome: number
+  assetPurchase: number
+  payablePayment: number
+  manualExpense: number
+  totalIn: number
+  totalOut: number
+  balance: number
+}
+
 function getAccountName(accountType: AccountingAccountType) {
   return accountType === 'CASH' ? 'Kas' : 'Bank'
 }
@@ -239,6 +251,42 @@ function buildLedgerRows(journalLines: JournalLine[]): LedgerRow[] {
     accounts.set(line.account, current)
   })
   return Array.from(accounts.values()).sort((a, b) => a.account.localeCompare(b.account))
+}
+
+function buildAccountBreakdown(transactions: AccountingTransactionRecord[], accountType: AccountingAccountType): AccountBreakdown {
+  const items = transactions.filter((transaction) => transaction.accountType === accountType)
+  const opening = items
+    .filter((transaction) => transaction.referenceType === 'OPENING_BALANCE')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const invoiceIncome = items
+    .filter((transaction) => transaction.referenceType === 'INVOICE_PAYMENT')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const manualIncome = items
+    .filter((transaction) => transaction.type === 'INCOME' && !['OPENING_BALANCE', 'INVOICE_PAYMENT'].includes(transaction.referenceType))
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const assetPurchase = items
+    .filter((transaction) => transaction.referenceType === 'ASSET_PURCHASE')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const payablePayment = items
+    .filter((transaction) => transaction.referenceType === 'PAYABLE_PAYMENT')
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const manualExpense = items
+    .filter((transaction) => transaction.type === 'EXPENSE' && !['ASSET_PURCHASE', 'PAYABLE_PAYMENT'].includes(transaction.referenceType))
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const totalIn = opening + invoiceIncome + manualIncome
+  const totalOut = assetPurchase + payablePayment + manualExpense
+
+  return {
+    opening,
+    invoiceIncome,
+    manualIncome,
+    assetPurchase,
+    payablePayment,
+    manualExpense,
+    totalIn,
+    totalOut,
+    balance: totalIn - totalOut,
+  }
 }
 
 function downloadCsv(filename: string, rows: Array<Record<string, string | number>>) {
@@ -432,6 +480,8 @@ export function AccountingDashboardPage() {
     if (transaction.type === 'INCOME') return { ...total, inflow: total.inflow + transaction.amount, net: total.net + transaction.amount }
     return { ...total, outflow: total.outflow + transaction.amount, net: total.net - transaction.amount }
   }, { inflow: 0, outflow: 0, net: 0 }), [allTransactions])
+  const cashBreakdown = useMemo(() => buildAccountBreakdown(allTransactions, 'CASH'), [allTransactions])
+  const bankBreakdown = useMemo(() => buildAccountBreakdown(allTransactions, 'BANK'), [allTransactions])
   const totalOpeningCapital = useMemo(() => allTransactions
     .filter((transaction) => transaction.referenceType === 'OPENING_BALANCE')
     .reduce((sum, transaction) => sum + transaction.amount, 0), [allTransactions])
@@ -833,6 +883,11 @@ export function AccountingDashboardPage() {
                         <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Saldo Bank</p>
                         <p className="mt-1 text-lg font-black">{formatCurrency(summary.bankBalance)}</p>
                       </div>
+                      {(summary.cashBalance < 0 || summary.bankBalance < 0) ? (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                          Saldo minus berarti uang keluar lebih besar dari saldo awal dan pemasukan yang sudah dicatat. Tambahkan saldo awal/modal atau koreksi sumber pembayaran transaksi.
+                        </div>
+                      ) : null}
                     </div>
                   </CardContent>
                 </Card>
@@ -895,6 +950,34 @@ export function AccountingDashboardPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-3">
+                  {activeTab === 'cash-bank' ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {[
+                        ['Kas', cashBreakdown],
+                        ['Bank', bankBreakdown],
+                      ].map(([label, breakdown]) => {
+                        const item = breakdown as AccountBreakdown
+                        return (
+                          <div className="rounded-md border border-app-border p-3" key={label as string}>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold">Rincian Saldo {label as string}</p>
+                              <p className={`font-bold ${item.balance < 0 ? 'text-red-700' : 'text-green-700'}`}>{formatCurrency(item.balance)}</p>
+                            </div>
+                            <div className="mt-3 grid gap-1 text-sm text-neutral-600">
+                              <p>Saldo awal / modal: {formatCurrency(item.opening)}</p>
+                              <p>Pembayaran invoice: {formatCurrency(item.invoiceIncome)}</p>
+                              <p>Pemasukan manual: {formatCurrency(item.manualIncome)}</p>
+                              <p className="font-semibold text-green-700">Total masuk: {formatCurrency(item.totalIn)}</p>
+                              <p>Pembelian aset: {formatCurrency(item.assetPurchase)}</p>
+                              <p>Pembayaran hutang: {formatCurrency(item.payablePayment)}</p>
+                              <p>Pengeluaran manual: {formatCurrency(item.manualExpense)}</p>
+                              <p className="font-semibold text-red-700">Total keluar: {formatCurrency(item.totalOut)}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : null}
                   {filteredTransactions.length === 0 ? <p className="text-sm text-neutral-500">Belum ada transaksi.</p> : filteredTransactions.map((transaction) => {
                     const canEditTransaction = ['MANUAL', 'OPENING_BALANCE'].includes(transaction.referenceType)
                     return (
