@@ -210,6 +210,16 @@ export async function getInvoice(userId: string, invoiceId: string) {
   return invoice
 }
 
+export async function getPublicInvoiceById(invoiceId: string) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.invoices, invoiceId))
+  if (!snapshot.exists()) return null
+
+  const invoice = buildInvoiceRecord(snapshot.id, snapshot.data())
+  if (invoice.deletedAt || !invoice.publicFormEnabled) return null
+
+  return invoice
+}
+
 export async function createInvoice(
   userId: string,
   input: InvoiceMutationInput,

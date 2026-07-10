@@ -12,6 +12,7 @@ export function buildTeamMessage(invoice: InvoiceRecord, event: InvoiceEventDeta
   const location = getPrimaryEventLocation(event, invoice.eventLocation || '-')
   const time = getPrimaryEventTime(event) || '-'
   const fieldLabels = new Map((event ? eventFieldDefinitions[event.eventType] : []).map((field) => [field.key, field.label]))
+  fieldLabels.set('locationLandmark', 'Patokan Alamat')
   const detailLines = event
     ? Object.entries(event.details)
         .filter(([, value]) => Boolean(value?.trim()))

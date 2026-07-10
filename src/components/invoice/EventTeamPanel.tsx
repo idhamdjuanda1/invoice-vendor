@@ -46,8 +46,6 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
     venueName: '',
     address: '',
     googleMapsUrl: '',
-    latitude: '',
-    longitude: '',
   })
   const [freelancers, setFreelancers] = useState<FreelanceRecord[]>([])
   const [assignment, setAssignment] = useState<TeamAssignmentRecord | null>(null)
@@ -80,8 +78,6 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
         venueName: eventData?.location.venueName ?? invoice.eventLocation ?? '',
         address: eventData?.location.address ?? '',
         googleMapsUrl: eventData?.location.googleMapsUrl ?? '',
-        latitude: eventData?.location.latitude == null ? '' : String(eventData.location.latitude),
-        longitude: eventData?.location.longitude == null ? '' : String(eventData.location.longitude),
       })
       setFreelancers(freelancerList)
       setAssignment(assignmentData)
@@ -148,8 +144,8 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
           venueName: eventInputLocation.venueName,
           address: eventInputLocation.address,
           googleMapsUrl: eventInputLocation.googleMapsUrl,
-          latitude: eventInputLocation.latitude ? Number(eventInputLocation.latitude) : null,
-          longitude: eventInputLocation.longitude ? Number(eventInputLocation.longitude) : null,
+          latitude: null,
+          longitude: null,
         },
       })
       await loadPanel()
@@ -275,6 +271,10 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
                 <p className="text-xs text-neutral-500">Alamat Lengkap</p>
                 <p className="mt-1 whitespace-pre-wrap font-semibold">{eventDetail.location.address || '-'}</p>
               </div>
+              <div className="sm:col-span-2">
+                <p className="text-xs text-neutral-500">Patokan Alamat</p>
+                <p className="mt-1 whitespace-pre-wrap font-semibold">{eventDetail.details.locationLandmark || '-'}</p>
+              </div>
               {eventDetail.location.googleMapsUrl ? (
                 <a className="sm:col-span-2" href={eventDetail.location.googleMapsUrl} rel="noreferrer" target="_blank">
                   <Button icon={<MapPin size={16} />} type="button" variant="secondary">Buka di Google Maps</Button>
@@ -313,12 +313,20 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
                 Alamat Lengkap
                 <textarea
                   className="min-h-24 rounded-md border border-app-border bg-white px-3 py-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:text-sm"
+                  placeholder="Tulis alamat lengkap seperti di aplikasi ojek online."
                   value={eventInputLocation.address}
                   onChange={(inputEvent) => setEventInputLocation((current) => ({ ...current, address: inputEvent.target.value }))}
                 />
               </label>
-              <Input label="Latitude" inputMode="decimal" value={eventInputLocation.latitude} onChange={(inputEvent) => setEventInputLocation((current) => ({ ...current, latitude: inputEvent.target.value }))} />
-              <Input label="Longitude" inputMode="decimal" value={eventInputLocation.longitude} onChange={(inputEvent) => setEventInputLocation((current) => ({ ...current, longitude: inputEvent.target.value }))} />
+              <label className="grid gap-2 text-sm font-medium text-app-text sm:col-span-2">
+                Patokan Alamat
+                <textarea
+                  className="min-h-24 rounded-md border border-app-border bg-white px-3 py-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:text-sm"
+                  placeholder="Contoh: dekat Gedung A, sebelah Indomaret, pagar hitam, masuk gang pertama."
+                  value={eventInputDetails.locationLandmark ?? ''}
+                  onChange={(inputEvent) => setEventInputDetails((current) => ({ ...current, locationLandmark: inputEvent.target.value }))}
+                />
+              </label>
             </div>
             <Button
               className="w-fit"
