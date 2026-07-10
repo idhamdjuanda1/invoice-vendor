@@ -42,6 +42,16 @@ service cloud.firestore {
       return isFreelance() && freelanceVendorId() == userId;
     }
 
+    function isAccountingForVendor(userId) {
+      return isFreelanceForVendor(userId)
+        && currentProfile().freelanceRoles is list
+        && currentProfile().freelanceRoles.hasAny(['ACCOUNTING']);
+    }
+
+    function canAccessAccounting(userId) {
+      return isSuperAdmin() || isOwner(userId) || isAccountingForVendor(userId);
+    }
+
     function isOwner(userId) {
       return signedIn() && request.auth.uid == userId;
     }
@@ -378,6 +388,33 @@ service cloud.firestore {
       allow read: if resource.data.isPublished == true || isSuperAdmin() || isOwner(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /accountingCategories/{categoryId} {
+      allow read: if canAccessAccounting(resource.data.userId);
+      allow create: if canAccessAccounting(request.resource.data.userId);
+      allow update: if canAccessAccounting(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if false;
+    }
+
+    match /accountingTransactions/{transactionId} {
+      allow read: if canAccessAccounting(resource.data.userId);
+      allow create: if canAccessAccounting(request.resource.data.userId);
+      allow update: if canAccessAccounting(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if false;
+    }
+
+    match /accountingAssets/{assetId} {
+      allow read: if canAccessAccounting(resource.data.userId);
+      allow create: if canAccessAccounting(request.resource.data.userId);
+      allow update: if canAccessAccounting(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if false;
+    }
+
+    match /accountingPeriods/{periodId} {
+      allow read: if canAccessAccounting(resource.data.userId);
+      allow create, update: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow delete: if false;
     }
 

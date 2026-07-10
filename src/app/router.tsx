@@ -3,6 +3,7 @@ import { AuthLayout } from '../components/layout/AuthLayout'
 import { DashboardLayout } from '../components/layout/DashboardLayout'
 import { PublicLayout } from '../components/layout/PublicLayout'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
+import { AccountingDashboardPage } from '../pages/accounting/AccountingDashboardPage'
 import { AdminBackupPage } from '../pages/admin/AdminBackupPage'
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage'
 import { AdminTokenPage } from '../pages/admin/AdminTokenPage'
@@ -75,6 +76,16 @@ export const router = createBrowserRouter([
       { path: '/pricelists/new', element: <PricelistCreatePage /> },
       { path: '/pricelists/:pricelistId/edit', element: <PricelistCreatePage /> },
       { path: '/export', element: <ExportPage /> },
+    ],
+  },
+  {
+    element: (
+      <ProtectedRoute allowedRoles={['user', 'freelance']} requiredFreelanceRole="ACCOUNTING">
+        <DashboardLayout role="accounting" />
+      </ProtectedRoute>
+    ),
+    children: [
+      { path: '/accounting', element: <AccountingDashboardPage /> },
     ],
   },
   {

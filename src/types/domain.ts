@@ -14,9 +14,12 @@ export type PaymentMethod = 'TRANSFER_BANK' | 'CASH' | 'QRIS' | 'OTHER'
 export type DiscountType = 'NOMINAL' | 'PERCENTAGE'
 export type EventType = 'WEDDING' | 'PREWEDDING' | 'LAMARAN' | 'CORPORATE'
 export type EventDataStatus = 'NOT_FILLED' | 'PARTIAL' | 'COMPLETE'
-export type FreelanceRole = 'FOTOGRAFER' | 'VIDEOGRAFER' | 'EDITOR_FOTO' | 'EDITOR_VIDEO' | 'ASISTEN'
+export type FreelanceRole = 'FOTOGRAFER' | 'VIDEOGRAFER' | 'EDITOR_FOTO' | 'EDITOR_VIDEO' | 'ASISTEN' | 'ACCOUNTING'
 export type FreelanceType = FreelanceRole
 export type EditJobStatus = 'WAITING_UPLOAD' | 'IN_PROGRESS' | 'DONE'
+export type AccountingTransactionType = 'INCOME' | 'EXPENSE'
+export type AccountingAccountType = 'CASH' | 'BANK'
+export type AccountingAssetCondition = 'BAIK' | 'PERLU_PERAWATAN' | 'RUSAK' | 'DIJUAL'
 
 export type EventLocationDetail = {
   venueName: string
@@ -121,6 +124,50 @@ export type JobDeliverableRecord = {
   links: JobDeliverableLinks
   notes: string | null
   uploadedAt: FirestoreDate
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type AccountingCategoryRecord = {
+  id: string
+  userId: string
+  type: AccountingTransactionType
+  name: string
+  isDefault: boolean
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type AccountingTransactionRecord = {
+  id: string
+  userId: string
+  type: AccountingTransactionType
+  date: FirestoreDate
+  accountType: AccountingAccountType
+  categoryId: string | null
+  categoryName: string
+  amount: number
+  description: string
+  referenceType: 'MANUAL' | 'INVOICE_PAYMENT' | 'ASSET_PURCHASE'
+  referenceId: string | null
+  createdById: string
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type AccountingAssetRecord = {
+  id: string
+  userId: string
+  name: string
+  purchaseDate: FirestoreDate
+  purchasePrice: number
+  condition: AccountingAssetCondition
+  location: string | null
+  notes: string | null
+  depreciationMethod: string | null
   createdAt: FirestoreDate
   updatedAt: FirestoreDate
   deletedAt: FirestoreDate

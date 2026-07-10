@@ -93,6 +93,7 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
     EDITOR_FOTO: [],
     EDITOR_VIDEO: [],
     ASISTEN: [],
+    ACCOUNTING: [],
   })
   const [conflictMessage, setConflictMessage] = useState('')
   const [message, setMessage] = useState('')
@@ -131,6 +132,7 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
         EDITOR_FOTO: assignmentData?.photoEditors.map((member) => member.freelanceId) ?? [],
         EDITOR_VIDEO: assignmentData?.videoEditors.map((member) => member.freelanceId) ?? [],
         ASISTEN: assignmentData?.assistants.map((member) => member.freelanceId) ?? [],
+        ACCOUNTING: [],
       })
     } catch (error) {
       console.error('Failed to load event/team panel', error)

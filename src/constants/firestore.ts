@@ -21,6 +21,10 @@ export const firestoreCollections = {
   receipts: 'receipts',
   agreements: 'agreements',
   pricelists: 'pricelists',
+  accountingCategories: 'accountingCategories',
+  accountingTransactions: 'accountingTransactions',
+  accountingAssets: 'accountingAssets',
+  accountingPeriods: 'accountingPeriods',
   backupLogs: 'backupLogs',
   auditLogs: 'auditLogs',
 } as const

@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import type { UserRole } from '../../types/domain'
+import type { FreelanceRole, UserRole } from '../../types/domain'
 import { TokenExpiredModal } from './TokenExpiredModal'
 import { useAuth } from './useAuth'
 
 type ProtectedRouteProps = {
   allowedRoles: UserRole[]
+  requiredFreelanceRole?: FreelanceRole
   children: ReactNode
 }
 
-export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps) {
+export function ProtectedRoute({ allowedRoles, requiredFreelanceRole, children }: ProtectedRouteProps) {
   const { activationAccess, firebaseUser, profile, status, accountBlockedReason } = useAuth()
   const location = useLocation()
 
@@ -45,7 +46,19 @@ export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps) 
   }
 
   if (!allowedRoles.includes(profile.role)) {
-    return <Navigate to={profile.role === 'super_admin' ? '/admin' : profile.role === 'freelance' ? '/freelance' : '/dashboard'} replace />
+    const freelancePath = profile.role === 'freelance' && profile.freelanceRoles.includes('ACCOUNTING') ? '/accounting' : '/freelance'
+    return <Navigate to={profile.role === 'super_admin' ? '/admin' : profile.role === 'freelance' ? freelancePath : '/dashboard'} replace />
+  }
+
+  if (profile.role === 'freelance') {
+    const hasAccountingRole = profile.freelanceRoles.includes('ACCOUNTING')
+    const hasOperationalRole = profile.freelanceRoles.some((role) => role !== 'ACCOUNTING')
+    if (requiredFreelanceRole && !profile.freelanceRoles.includes(requiredFreelanceRole)) {
+      return <Navigate to={hasAccountingRole ? '/accounting' : '/freelance'} replace />
+    }
+    if (!requiredFreelanceRole && hasAccountingRole && !hasOperationalRole && location.pathname.startsWith('/freelance')) {
+      return <Navigate to="/accounting" replace />
+    }
   }
 
   return children

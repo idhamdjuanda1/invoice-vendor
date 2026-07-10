@@ -20,6 +20,7 @@ export const freelanceTypeLabels: Record<FreelanceType, string> = {
   EDITOR_FOTO: 'Editor Foto',
   EDITOR_VIDEO: 'Editor Video',
   ASISTEN: 'Asisten',
+  ACCOUNTING: 'Accounting',
 }
 
 function makeInviteToken() {

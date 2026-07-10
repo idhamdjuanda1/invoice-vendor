@@ -24,7 +24,11 @@ export function LoginPage() {
 
     try {
       const profile = await login({ email, password })
-      const nextPath = profile?.role === 'super_admin' ? '/admin' : profile?.role === 'freelance' ? '/freelance' : '/dashboard'
+      const nextPath = profile?.role === 'super_admin'
+        ? '/admin'
+        : profile?.role === 'freelance'
+          ? profile.freelanceRoles.includes('ACCOUNTING') ? '/accounting' : '/freelance'
+          : '/dashboard'
       navigate(nextPath, { replace: true })
     } catch (loginError) {
       setError(getFriendlyAuthError(loginError))

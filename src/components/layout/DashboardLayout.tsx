@@ -2,6 +2,7 @@ import {
   Banknote,
   Building2,
   Boxes,
+  Calculator,
   Edit3,
   FileBarChart,
   FileSignature,
@@ -25,7 +26,7 @@ import { getBusinessProfile, syncPricelistsWithBusinessProfile } from '../../ser
 import type { BusinessProfile } from '../../types/domain'
 
 type DashboardLayoutProps = {
-  role: 'vendor' | 'admin' | 'freelance'
+  role: 'vendor' | 'admin' | 'freelance' | 'accounting'
 }
 
 const vendorNav = [
@@ -39,6 +40,7 @@ const vendorNav = [
   { label: 'Kuitansi', href: '/receipts', icon: Receipt },
   { label: 'MOU', href: '/agreements', icon: FileSignature },
   { label: 'Pricelist', href: '/pricelists', icon: Tags },
+  { label: 'Accounting', href: '/accounting', icon: Calculator },
   { label: 'Export', href: '/export', icon: FileBarChart },
 ]
 
@@ -56,8 +58,12 @@ const freelanceNav = [
   { label: 'Profil', href: '/freelance/profile', icon: UserRound },
 ]
 
+const accountingNav = [
+  { label: 'Accounting', href: '/accounting', icon: Calculator },
+]
+
 export function DashboardLayout({ role }: DashboardLayoutProps) {
-  const navigation = role === 'admin' ? adminNav : role === 'freelance' ? freelanceNav : vendorNav
+  const navigation = role === 'admin' ? adminNav : role === 'freelance' ? freelanceNav : role === 'accounting' ? accountingNav : vendorNav
   const { logout, profile } = useAuth()
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null)
 
@@ -65,16 +71,17 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
     let isMounted = true
 
     async function loadBusinessProfile() {
-      if (role !== 'vendor' || !profile?.uid) {
+      const businessOwnerId = profile?.role === 'user' ? profile.uid : profile?.vendorId || ''
+      if (!['vendor', 'accounting'].includes(role) || !businessOwnerId) {
         setBusinessProfile(null)
         return
       }
 
       try {
-        const loadedProfile = await getBusinessProfile(profile.uid)
+        const loadedProfile = await getBusinessProfile(businessOwnerId)
         if (isMounted) setBusinessProfile(loadedProfile)
         if (loadedProfile) {
-          void syncPricelistsWithBusinessProfile(profile.uid).catch((error) => {
+          void syncPricelistsWithBusinessProfile(businessOwnerId).catch((error) => {
             console.error('Failed to sync public vendor profile', error)
           })
         }
@@ -88,9 +95,9 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
     return () => {
       isMounted = false
     }
-  }, [profile?.uid, role])
+  }, [profile?.role, profile?.uid, profile?.vendorId, role])
 
-  const displayName = role === 'vendor' ? businessProfile?.vendorName || profile?.name || 'Vendor' : profile?.name || (role === 'admin' ? 'Super Admin' : 'Freelance')
+  const displayName = ['vendor', 'accounting'].includes(role) ? businessProfile?.vendorName || profile?.name || 'Vendor' : profile?.name || (role === 'admin' ? 'Super Admin' : 'Freelance')
   const displayEmail = businessProfile?.email || profile?.email || ''
 
   return (
@@ -98,7 +105,7 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-app-border bg-white p-5 lg:block">
         <div className="text-xl font-bold text-app-text">Invoice Vendor</div>
         <p className="mt-1 text-xs uppercase tracking-[0.16em] text-app-gold">
-          {role === 'admin' ? 'Super Admin' : role === 'freelance' ? 'Freelance' : 'Vendor'}
+          {role === 'admin' ? 'Super Admin' : role === 'accounting' ? 'Accounting' : role === 'freelance' ? 'Freelance' : 'Vendor'}
         </p>
         <nav className="mt-8 grid gap-1">
           {navigation.map((item) => (
@@ -123,7 +130,7 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
           <div className="mx-auto flex max-w-7xl items-center justify-between">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-3">
-                {role === 'vendor' ? (
+                {['vendor', 'accounting'].includes(role) ? (
                   <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-app-border bg-app-muted">
                     {businessProfile?.logoUrl ? (
                       <img alt="Logo vendor" className="size-full object-contain" src={businessProfile.logoUrl} />
@@ -140,7 +147,7 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden rounded-full border border-app-border px-3 py-1 text-xs font-semibold text-neutral-600 sm:block">
-                {profile?.role === 'super_admin' ? 'Super Admin' : profile?.role === 'freelance' ? 'Freelance' : 'Vendor'}
+                {profile?.role === 'super_admin' ? 'Super Admin' : role === 'accounting' ? 'Accounting' : profile?.role === 'freelance' ? 'Freelance' : 'Vendor'}
               </div>
               <Button
                 aria-label="Logout"
