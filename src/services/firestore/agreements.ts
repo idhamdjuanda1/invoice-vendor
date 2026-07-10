@@ -17,6 +17,7 @@ import { firestore } from '../../lib/firebase/client'
 import type { AgreementRecord, BusinessProfile, InvoiceRecord } from '../../types/domain'
 import { getBusinessProfile } from './businessProfiles'
 import { getInvoice } from './invoices'
+import { getInvoiceEventByInvoiceId } from './invoiceEvents'
 
 function buildAgreementRecord(id: string, data: Record<string, unknown>): AgreementRecord {
   return {
@@ -36,13 +37,19 @@ function buildAgreementRecord(id: string, data: Record<string, unknown>): Agreem
     clientWhatsappNumber: typeof data.clientWhatsappNumber === 'string' ? data.clientWhatsappNumber : null,
     clientEmail: typeof data.clientEmail === 'string' ? data.clientEmail : null,
     clientAddress: typeof data.clientAddress === 'string' ? data.clientAddress : null,
+    eventType: data.eventType === 'PREWEDDING' || data.eventType === 'LAMARAN' || data.eventType === 'CORPORATE' ? data.eventType : 'WEDDING',
+    eventDetails: data.eventDetails && typeof data.eventDetails === 'object' ? (data.eventDetails as Record<string, string>) : {},
     eventDate: (data.eventDate as AgreementRecord['eventDate']) ?? null,
     eventLocation: String(data.eventLocation ?? ''),
+    eventLocationAddress: typeof data.eventLocationAddress === 'string' ? data.eventLocationAddress : null,
+    eventLocationLandmark: typeof data.eventLocationLandmark === 'string' ? data.eventLocationLandmark : null,
+    eventGoogleMapsUrl: typeof data.eventGoogleMapsUrl === 'string' ? data.eventGoogleMapsUrl : null,
     totalAmount: Number(data.totalAmount ?? 0),
     totalPaid: Number(data.totalPaid ?? 0),
     remainingAmount: Number(data.remainingAmount ?? 0),
     invoiceNumber: String(data.invoiceNumber ?? ''),
     packageSummary: String(data.packageSummary ?? ''),
+    packageItems: Array.isArray(data.packageItems) ? (data.packageItems as AgreementRecord['packageItems']) : [],
     clauses: Array.isArray(data.clauses) ? data.clauses.map(String) : [],
     status: data.status === 'SIGNED' ? 'SIGNED' : 'DRAFT',
     createdAt: (data.createdAt as AgreementRecord['createdAt']) ?? null,
@@ -55,10 +62,16 @@ function getDefaultClauses(invoice: InvoiceRecord, businessProfile: BusinessProf
   const vendorName = businessProfile?.vendorName || 'Vendor'
   const clientName = invoice.clientName || 'Klien'
   const packageSummary = invoice.items.map((item) => item.packageName).join(', ') || 'layanan yang telah disepakati'
+  const packageDetails = invoice.items
+    .map((item) => {
+      const description = item.description ? ` dengan detail: ${item.description}` : ''
+      return `${item.packageName} (${formatCurrency(item.totalPrice)})${description}`
+    })
+    .join('; ')
 
   return [
     `Para pihak sepakat bahwa ${vendorName} bertindak sebagai penyedia jasa/vendor dan ${clientName} bertindak sebagai klien/pemesan jasa untuk kebutuhan acara sebagaimana tercantum dalam invoice ${invoice.invoiceNumber}.`,
-    `Ruang lingkup kerja sama meliputi penyediaan ${packageSummary}, termasuk persiapan, pelaksanaan, dan koordinasi layanan sesuai detail paket yang telah disepakati oleh para pihak.`,
+    `Ruang lingkup kerja sama meliputi penyediaan ${packageSummary}, termasuk persiapan, pelaksanaan, dan koordinasi layanan sesuai detail paket yang telah disepakati oleh para pihak. Detail paket: ${packageDetails || packageSummary}.`,
     `Nilai kerja sama adalah ${formatCurrency(invoice.totalAmount)}. Pembayaran yang telah diterima sampai dokumen ini dibuat adalah ${formatCurrency(invoice.totalPaid)}, dengan sisa pembayaran sebesar ${formatCurrency(invoice.remainingAmount)}.`,
     'Termin Pertama dibayarkan saat booking jasa. Termin Kedua atau pelunasan dibayar paling lambat 1 minggu sebelum acara. Apabila klien membatalkan perjanjian setelah pembayaran Termin Pertama, maka pembayaran Termin Pertama dinyatakan hangus. Apabila klien telah melakukan pelunasan dan membatalkan acara, maka pengembalian dana dilakukan sebesar 60% dari Termin Kedua.',
     'Produk foto dan/atau video yang diterima klien mengikuti paket yang dipilih. Materi untuk kebutuhan sosial media dapat diberikan bertahap dalam estimasi 1-2 minggu setelah acara, sedangkan keseluruhan hasil akhir mengikuti antrean produksi dan proses editing vendor.',
@@ -117,9 +130,10 @@ export async function createAgreementFromInvoice(userId: string, invoiceId: stri
 
   if (existingAgreement) return existingAgreement.id
 
-  const [invoice, businessProfile] = await Promise.all([
+  const [invoice, businessProfile, eventDetail] = await Promise.all([
     getInvoice(userId, invoiceId),
     getBusinessProfile(userId),
+    getInvoiceEventByInvoiceId(userId, invoiceId),
   ])
   if (!invoice) throw new Error('INVOICE_NOT_FOUND')
 
@@ -139,13 +153,19 @@ export async function createAgreementFromInvoice(userId: string, invoiceId: stri
     clientWhatsappNumber: invoice.clientWhatsappNumber,
     clientEmail: invoice.clientEmail,
     clientAddress: invoice.clientAddress,
+    eventType: invoice.eventType,
+    eventDetails: eventDetail?.details ?? {},
     eventDate: invoice.eventDate,
-    eventLocation: invoice.eventLocation,
+    eventLocation: eventDetail?.location.venueName || invoice.eventLocation,
+    eventLocationAddress: eventDetail?.location.address || null,
+    eventLocationLandmark: eventDetail?.details.locationLandmark || null,
+    eventGoogleMapsUrl: eventDetail?.location.googleMapsUrl || null,
     totalAmount: invoice.totalAmount,
     totalPaid: invoice.totalPaid,
     remainingAmount: invoice.remainingAmount,
     invoiceNumber: invoice.invoiceNumber,
     packageSummary: getPackageSummary(invoice),
+    packageItems: invoice.items,
     clauses: getDefaultClauses(invoice, businessProfile),
     status: 'DRAFT',
     deletedAt: null,

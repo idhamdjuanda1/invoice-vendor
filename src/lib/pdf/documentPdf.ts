@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import { formatCurrency } from '../formatters/currency'
 import { formatDisplayDate } from '../formatters/date'
 import { paymentMethodLabels, paymentStatusLabels } from '../formatters/invoice'
+import { eventFieldDefinitions, eventTypeLabels } from '../events/eventDetails'
 import type { AgreementRecord, BusinessProfile, InvoiceRecord, PaymentRecord, ReceiptRecord } from '../../types/domain'
 
 type PdfDoc = jsPDF
@@ -303,6 +304,48 @@ export async function generateAgreementPdf(params: { agreement: AgreementRecord;
   text(doc, `Nilai Kerja Sama: ${formatCurrency(agreement.totalAmount)}`, margin.left + 4, y + 16, { size: 9, bold: true })
   wrappedText(doc, `Lokasi: ${agreement.eventLocation || '-'}`, margin.left + 4, y + 24, contentWidth - 8, { size: 9, color: gray, lineHeight: 4 })
   y += 40
+
+  y = ensurePage(doc, y, 30)
+  text(doc, 'Paket dan Layanan', margin.left, y, { size: 11, bold: true })
+  y += 7
+  if (agreement.packageItems.length > 0) {
+    agreement.packageItems.forEach((item) => {
+      y = ensurePage(doc, y, 16)
+      text(doc, item.packageName, margin.left, y, { size: 9.5, bold: true })
+      text(doc, formatCurrency(item.totalPrice), pageWidth - margin.right, y, { size: 9.5, bold: true, align: 'right' })
+      y += 5
+      if (item.description) {
+        y = wrappedText(doc, item.description, margin.left, y, contentWidth, { size: 8.5, color: gray, lineHeight: 4.3 }) + 2
+      }
+    })
+  } else {
+    y = wrappedText(doc, agreement.packageSummary || '-', margin.left, y, contentWidth, { size: 9, color: gray, lineHeight: 4.5 }) + 2
+  }
+  y += 5
+
+  y = ensurePage(doc, y, 28)
+  text(doc, 'Detail Acara', margin.left, y, { size: 11, bold: true })
+  y += 7
+  text(doc, `Jenis Acara: ${eventTypeLabels[agreement.eventType]}`, margin.left, y, { size: 9, bold: true })
+  y += 6
+  eventFieldDefinitions[agreement.eventType].forEach((field) => {
+    const value = agreement.eventDetails[field.key]
+    if (!value) return
+    y = ensurePage(doc, y, 8)
+    text(doc, `${field.label}:`, margin.left, y, { size: 8.5, bold: true })
+    y = wrappedText(doc, value, margin.left + 33, y, contentWidth - 33, { size: 8.5, color: gray, lineHeight: 4.2 }) + 1
+  })
+  if (agreement.eventLocationAddress) {
+    y = ensurePage(doc, y, 10)
+    text(doc, 'Alamat:', margin.left, y, { size: 8.5, bold: true })
+    y = wrappedText(doc, agreement.eventLocationAddress, margin.left + 33, y, contentWidth - 33, { size: 8.5, color: gray, lineHeight: 4.2 }) + 1
+  }
+  if (agreement.eventLocationLandmark) {
+    y = ensurePage(doc, y, 10)
+    text(doc, 'Patokan:', margin.left, y, { size: 8.5, bold: true })
+    y = wrappedText(doc, agreement.eventLocationLandmark, margin.left + 33, y, contentWidth - 33, { size: 8.5, color: gray, lineHeight: 4.2 }) + 1
+  }
+  y += 5
 
   clauses.forEach((clause, index) => {
     const lines = doc.splitTextToSize(clause, contentWidth) as string[]

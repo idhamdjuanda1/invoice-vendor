@@ -293,13 +293,19 @@ export type AgreementRecord = {
   clientWhatsappNumber: string | null
   clientEmail: string | null
   clientAddress: string | null
+  eventType: EventType
+  eventDetails: Record<string, string>
   eventDate: FirestoreDate
   eventLocation: string
+  eventLocationAddress: string | null
+  eventLocationLandmark: string | null
+  eventGoogleMapsUrl: string | null
   totalAmount: number
   totalPaid: number
   remainingAmount: number
   invoiceNumber: string
   packageSummary: string
+  packageItems: InvoicePackageItem[]
   clauses: string[]
   status: 'DRAFT' | 'SIGNED'
   createdAt: FirestoreDate

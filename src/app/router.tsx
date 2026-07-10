@@ -21,6 +21,7 @@ import { PublicPricelistPage } from '../pages/public/PublicPricelistPage'
 import { AgreementDetailPage } from '../pages/vendor/AgreementDetailPage'
 import { AgreementsPage } from '../pages/vendor/AgreementsPage'
 import { DashboardPage } from '../pages/vendor/DashboardPage'
+import { EditorDashboardPage } from '../pages/vendor/EditorDashboardPage'
 import { ExportPage } from '../pages/vendor/ExportPage'
 import { InvoiceCreatePage } from '../pages/vendor/InvoiceCreatePage'
 import { InvoiceDetailPage } from '../pages/vendor/InvoiceDetailPage'
@@ -60,6 +61,7 @@ export const router = createBrowserRouter([
       { path: '/packages', element: <PackagesPage /> },
       { path: '/freelancers', element: <FreelancersPage /> },
       { path: '/freelancers/:freelancerId', element: <FreelancerDetailPage /> },
+      { path: '/editor', element: <EditorDashboardPage /> },
       { path: '/invoices', element: <InvoicesPage /> },
       { path: '/invoices/new', element: <InvoiceCreatePage /> },
       { path: '/invoices/:invoiceId', element: <InvoiceDetailPage /> },

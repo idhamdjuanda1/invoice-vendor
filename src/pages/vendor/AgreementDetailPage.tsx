@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useAuth } from '../../features/auth/useAuth'
+import { eventFieldDefinitions, eventTypeLabels } from '../../lib/events/eventDetails'
 import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate } from '../../lib/formatters/date'
 import { makePrintTitle } from '../../lib/formatters/printTitle'
@@ -202,7 +203,47 @@ export function AgreementDetailPage() {
                 </div>
                 <div className="mt-3 border-t border-app-border pt-3">
                   <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Paket/Layanan</p>
-                  <p className="mt-1">{agreement.packageSummary}</p>
+                  {agreement.packageItems.length > 0 ? (
+                    <div className="mt-2 grid gap-3">
+                      {agreement.packageItems.map((item) => (
+                        <div className="rounded-md border border-app-border bg-white p-3" key={item.id}>
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                            <p className="font-semibold">{item.packageName}</p>
+                            <p className="font-bold">{formatCurrency(item.totalPrice)}</p>
+                          </div>
+                          {item.description ? (
+                            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-neutral-600">{item.description}</p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1">{agreement.packageSummary}</p>
+                  )}
+                </div>
+                <div className="mt-3 border-t border-app-border pt-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Detail Acara</p>
+                  <p className="mt-1 font-semibold">{eventTypeLabels[agreement.eventType]}</p>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {eventFieldDefinitions[agreement.eventType].map((field) => (
+                      <div key={field.key}>
+                        <p className="text-xs text-neutral-500">{field.label}</p>
+                        <p className="font-semibold">{agreement.eventDetails[field.key] || '-'}</p>
+                      </div>
+                    ))}
+                    {agreement.eventLocationAddress ? (
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-neutral-500">Alamat Lengkap</p>
+                        <p className="whitespace-pre-line font-semibold">{agreement.eventLocationAddress}</p>
+                      </div>
+                    ) : null}
+                    {agreement.eventLocationLandmark ? (
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-neutral-500">Patokan Alamat</p>
+                        <p className="whitespace-pre-line font-semibold">{agreement.eventLocationLandmark}</p>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
