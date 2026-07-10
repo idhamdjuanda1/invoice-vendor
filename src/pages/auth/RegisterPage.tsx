@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -15,6 +15,13 @@ export function RegisterPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (window.location.hash !== '#register-form') return
+    window.requestAnimationFrame(() => {
+      document.getElementById('register-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -39,7 +46,7 @@ export function RegisterPage() {
   }
 
   return (
-    <Card className="w-full max-w-xl">
+    <Card className="w-full max-w-xl scroll-mt-6" id="register-form">
       <CardHeader>
         <h1 className="text-2xl font-bold">Registrasi Vendor</h1>
         <p className="mt-2 text-sm text-neutral-600">

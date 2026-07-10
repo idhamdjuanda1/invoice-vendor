@@ -39,7 +39,6 @@ export function AuthLayout() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-lg font-black text-app-gold">Invoice Vendor</p>
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">Apps by @ IDM Project</p>
               </div>
               <div className="hidden rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-neutral-300 sm:block">
                 Wedding & Event Ops
@@ -61,7 +60,7 @@ export function AuthLayout() {
                 </p>
                 <Link
                   className="mt-7 inline-flex min-h-12 items-center justify-center rounded-md bg-app-gold px-5 py-3 text-sm font-black text-app-text transition hover:bg-app-gold/90"
-                  to="/register"
+                  to="/register#register-form"
                 >
                   Mulai Trial Gratis 1 Hari
                 </Link>
@@ -84,7 +83,7 @@ export function AuthLayout() {
           </div>
         </section>
 
-        <section className="flex items-start justify-center px-4 py-6 sm:px-5 sm:py-10 lg:min-h-screen lg:items-center">
+        <section id="auth-panel" className="flex scroll-mt-6 items-start justify-center px-4 py-6 sm:px-5 sm:py-10 lg:min-h-screen lg:items-center">
           <Outlet />
         </section>
       </div>
