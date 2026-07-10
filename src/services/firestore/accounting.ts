@@ -7,6 +7,8 @@ import type {
   AccountingAssetCondition,
   AccountingAssetRecord,
   AccountingCategoryRecord,
+  AccountingPayableRecord,
+  AccountingPayableStatus,
   AccountingTransactionRecord,
   AccountingTransactionType,
   FirestoreDate,
@@ -32,6 +34,13 @@ export type AccountingAssetInput = {
   depreciationMonths: number
   location: string
   notes: string
+}
+
+export type AccountingPayableInput = {
+  vendorName: string
+  description: string
+  dueDate: string
+  amount: number
 }
 
 export const incomeCategoryDefaults = ['Pelunasan Invoice', 'Pendapatan Lain', 'Pendapatan Jasa', 'Pendapatan Tambahan', 'Saldo Awal / Modal']
@@ -70,6 +79,12 @@ export const assetConditionLabels: Record<AccountingAssetCondition, string> = {
   PERLU_PERAWATAN: 'Perlu Perawatan',
   RUSAK: 'Rusak',
   DIJUAL: 'Dijual',
+}
+
+export const accountingPayableStatusLabels: Record<AccountingPayableStatus, string> = {
+  UNPAID: 'Belum Dibayar',
+  PARTIAL: 'Dibayar Sebagian',
+  PAID: 'Lunas',
 }
 
 function toMillis(value: FirestoreDate) {
@@ -111,7 +126,11 @@ function buildTransaction(id: string, data: Record<string, unknown>): Accounting
     amount: Number(data.amount ?? 0),
     description: String(data.description ?? ''),
     referenceType:
-      data.referenceType === 'INVOICE_PAYMENT' || data.referenceType === 'ASSET_PURCHASE' || data.referenceType === 'OPENING_BALANCE' || data.referenceType === 'DEPRECIATION'
+      data.referenceType === 'INVOICE_PAYMENT'
+        || data.referenceType === 'ASSET_PURCHASE'
+        || data.referenceType === 'OPENING_BALANCE'
+        || data.referenceType === 'DEPRECIATION'
+        || data.referenceType === 'PAYABLE_PAYMENT'
         ? data.referenceType
         : 'MANUAL',
     referenceId: typeof data.referenceId === 'string' ? data.referenceId : null,
@@ -119,6 +138,23 @@ function buildTransaction(id: string, data: Record<string, unknown>): Accounting
     createdAt: (data.createdAt as AccountingTransactionRecord['createdAt']) ?? null,
     updatedAt: (data.updatedAt as AccountingTransactionRecord['updatedAt']) ?? null,
     deletedAt: (data.deletedAt as AccountingTransactionRecord['deletedAt']) ?? null,
+  }
+}
+
+function buildPayable(id: string, data: Record<string, unknown>): AccountingPayableRecord {
+  const status = ['PARTIAL', 'PAID'].includes(String(data.status)) ? data.status as AccountingPayableStatus : 'UNPAID'
+  return {
+    id,
+    userId: String(data.userId ?? ''),
+    vendorName: String(data.vendorName ?? ''),
+    description: String(data.description ?? ''),
+    dueDate: (data.dueDate as AccountingPayableRecord['dueDate']) ?? null,
+    amount: Number(data.amount ?? 0),
+    paidAmount: Number(data.paidAmount ?? 0),
+    status,
+    createdAt: (data.createdAt as AccountingPayableRecord['createdAt']) ?? null,
+    updatedAt: (data.updatedAt as AccountingPayableRecord['updatedAt']) ?? null,
+    deletedAt: (data.deletedAt as AccountingPayableRecord['deletedAt']) ?? null,
   }
 }
 
@@ -324,10 +360,86 @@ export async function createAccountingAsset(userId: string, input: AccountingAss
   })
 }
 
+export async function listAccountingPayables(userId: string) {
+  const snapshot = await getDocs(query(collection(firestore, firestoreCollections.accountingPayables), where('userId', '==', userId)))
+  return snapshot.docs
+    .map((payableDoc) => buildPayable(payableDoc.id, payableDoc.data()))
+    .filter((payable) => !payable.deletedAt)
+    .sort((a, b) => toMillis(a.dueDate) - toMillis(b.dueDate))
+}
+
+export async function createAccountingPayable(userId: string, input: AccountingPayableInput) {
+  if (!input.vendorName.trim()) throw new Error('ACCOUNTING_PAYABLE_VENDOR_REQUIRED')
+  if (!input.description.trim()) throw new Error('ACCOUNTING_DESCRIPTION_REQUIRED')
+  if (!input.amount || input.amount <= 0) throw new Error('ACCOUNTING_AMOUNT_INVALID')
+
+  await addDoc(collection(firestore, firestoreCollections.accountingPayables), {
+    userId,
+    vendorName: input.vendorName.trim(),
+    description: input.description.trim(),
+    dueDate: dateStringToTimestamp(input.dueDate),
+    amount: input.amount,
+    paidAmount: 0,
+    status: 'UNPAID',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    deletedAt: null,
+  })
+}
+
+export async function markAccountingPayablePaid(userId: string, payableId: string, accountType: AccountingAccountType, createdById: string) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.accountingPayables, payableId))
+  if (!snapshot.exists()) throw new Error('ACCOUNTING_PAYABLE_NOT_FOUND')
+
+  const payable = buildPayable(snapshot.id, snapshot.data())
+  if (payable.userId !== userId || payable.deletedAt) throw new Error('ACCOUNTING_PAYABLE_NOT_FOUND')
+  const remainingAmount = Math.max(payable.amount - payable.paidAmount, 0)
+  if (remainingAmount <= 0) throw new Error('ACCOUNTING_PAYABLE_ALREADY_PAID')
+
+  await updateDoc(doc(firestore, firestoreCollections.accountingPayables, payableId), {
+    userId,
+    paidAmount: payable.amount,
+    status: 'PAID',
+    updatedAt: serverTimestamp(),
+  })
+
+  await addDoc(collection(firestore, firestoreCollections.accountingTransactions), {
+    userId,
+    type: 'EXPENSE',
+    date: serverTimestamp(),
+    accountType,
+    categoryId: null,
+    categoryName: 'Pembayaran Hutang',
+    amount: remainingAmount,
+    description: `Pembayaran hutang ${payable.vendorName} - ${payable.description}`,
+    referenceType: 'PAYABLE_PAYMENT',
+    referenceId: payableId,
+    createdById,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    deletedAt: null,
+  })
+}
+
+export async function softDeleteAccountingPayable(userId: string, payableId: string) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.accountingPayables, payableId))
+  if (!snapshot.exists()) throw new Error('ACCOUNTING_PAYABLE_NOT_FOUND')
+
+  const payable = buildPayable(snapshot.id, snapshot.data())
+  if (payable.userId !== userId || payable.deletedAt) throw new Error('ACCOUNTING_PAYABLE_NOT_FOUND')
+  if (payable.paidAmount > 0) throw new Error('ACCOUNTING_PAYABLE_HAS_PAYMENT')
+
+  await updateDoc(doc(firestore, firestoreCollections.accountingPayables, payableId), {
+    userId,
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export function buildAccountingSummary(transactions: AccountingTransactionRecord[], assets: AccountingAssetRecord[]) {
   const operatingTransactions = transactions.filter((transaction) => transaction.referenceType !== 'OPENING_BALANCE')
   const income = operatingTransactions.filter((transaction) => transaction.type === 'INCOME')
-  const expenses = operatingTransactions.filter((transaction) => transaction.type === 'EXPENSE' && transaction.referenceType !== 'ASSET_PURCHASE')
+  const expenses = operatingTransactions.filter((transaction) => transaction.type === 'EXPENSE' && !['ASSET_PURCHASE', 'PAYABLE_PAYMENT'].includes(transaction.referenceType))
   const monthlyIncome = income.filter((transaction) => isCurrentMonth(transaction.date)).reduce((sum, item) => sum + item.amount, 0)
   const monthlyExpense = expenses.filter((transaction) => isCurrentMonth(transaction.date)).reduce((sum, item) => sum + item.amount, 0)
   const monthlyDepreciation = assets.reduce((sum, asset) => sum + asset.monthlyDepreciation, 0)

@@ -24,6 +24,7 @@ export const firestoreCollections = {
   accountingCategories: 'accountingCategories',
   accountingTransactions: 'accountingTransactions',
   accountingAssets: 'accountingAssets',
+  accountingPayables: 'accountingPayables',
   accountingPeriods: 'accountingPeriods',
   backupLogs: 'backupLogs',
   auditLogs: 'auditLogs',

@@ -20,6 +20,7 @@ export type EditJobStatus = 'WAITING_UPLOAD' | 'IN_PROGRESS' | 'DONE'
 export type AccountingTransactionType = 'INCOME' | 'EXPENSE'
 export type AccountingAccountType = 'CASH' | 'BANK'
 export type AccountingAssetCondition = 'BAIK' | 'PERLU_PERAWATAN' | 'RUSAK' | 'DIJUAL'
+export type AccountingPayableStatus = 'UNPAID' | 'PARTIAL' | 'PAID'
 
 export type EventLocationDetail = {
   venueName: string
@@ -150,7 +151,7 @@ export type AccountingTransactionRecord = {
   categoryName: string
   amount: number
   description: string
-  referenceType: 'MANUAL' | 'INVOICE_PAYMENT' | 'ASSET_PURCHASE' | 'OPENING_BALANCE' | 'DEPRECIATION'
+  referenceType: 'MANUAL' | 'INVOICE_PAYMENT' | 'ASSET_PURCHASE' | 'OPENING_BALANCE' | 'DEPRECIATION' | 'PAYABLE_PAYMENT'
   referenceId: string | null
   createdById: string
   createdAt: FirestoreDate
@@ -171,6 +172,20 @@ export type AccountingAssetRecord = {
   depreciationMethod: string | null
   depreciationMonths: number
   monthlyDepreciation: number
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type AccountingPayableRecord = {
+  id: string
+  userId: string
+  vendorName: string
+  description: string
+  dueDate: FirestoreDate
+  amount: number
+  paidAmount: number
+  status: AccountingPayableStatus
   createdAt: FirestoreDate
   updatedAt: FirestoreDate
   deletedAt: FirestoreDate
