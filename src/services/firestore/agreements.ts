@@ -93,55 +93,8 @@ function getPackageSummary(invoice: InvoiceRecord) {
   return invoice.items.map((item) => item.packageName).join(', ') || '-'
 }
 
-export async function listAgreements(userId: string) {
-  const agreementsQuery = query(collection(firestore, firestoreCollections.agreements), where('userId', '==', userId))
-  const snapshot = await getDocs(agreementsQuery)
-
-  return snapshot.docs
-    .map((agreementDoc) => buildAgreementRecord(agreementDoc.id, agreementDoc.data()))
-    .filter((agreement) => !agreement.deletedAt)
-    .sort((a, b) => {
-      const aDate = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0
-      const bDate = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0
-      return bDate - aDate
-    })
-}
-
-export async function getAgreement(userId: string, agreementId: string) {
-  const snapshot = await getDoc(doc(firestore, firestoreCollections.agreements, agreementId))
-  if (!snapshot.exists()) return null
-
-  const agreement = buildAgreementRecord(snapshot.id, snapshot.data())
-  if (agreement.userId !== userId || agreement.deletedAt) return null
-
-  return agreement
-}
-
-export async function createAgreementFromInvoice(userId: string, invoiceId: string) {
-  const existingQuery = query(
-    collection(firestore, firestoreCollections.agreements),
-    where('userId', '==', userId),
-    where('invoiceId', '==', invoiceId),
-  )
-  const existingSnapshot = await getDocs(existingQuery)
-  const existingAgreement = existingSnapshot.docs
-    .map((agreementDoc) => buildAgreementRecord(agreementDoc.id, agreementDoc.data()))
-    .find((agreement) => !agreement.deletedAt)
-
-  if (existingAgreement) return existingAgreement.id
-
-  const [invoice, businessProfile, eventDetail] = await Promise.all([
-    getInvoice(userId, invoiceId),
-    getBusinessProfile(userId),
-    getInvoiceEventByInvoiceId(userId, invoiceId),
-  ])
-  if (!invoice) throw new Error('INVOICE_NOT_FOUND')
-
-  const docRef = await addDoc(collection(firestore, firestoreCollections.agreements), {
-    userId,
-    invoiceId: invoice.id,
-    agreementNumber: `MOU-${invoice.invoiceNumber}`,
-    agreementDate: Timestamp.now(),
+function buildAgreementSyncPayload(invoice: InvoiceRecord, businessProfile: BusinessProfile | null, eventDetail: Awaited<ReturnType<typeof getInvoiceEventByInvoiceId>>) {
+  return {
     vendorName: businessProfile?.vendorName || 'Vendor',
     vendorWhatsappNumber: businessProfile?.whatsappNumber || null,
     vendorAddress: businessProfile?.address || null,
@@ -166,6 +119,81 @@ export async function createAgreementFromInvoice(userId: string, invoiceId: stri
     invoiceNumber: invoice.invoiceNumber,
     packageSummary: getPackageSummary(invoice),
     packageItems: invoice.items,
+  }
+}
+
+export async function listAgreements(userId: string) {
+  const agreementsQuery = query(collection(firestore, firestoreCollections.agreements), where('userId', '==', userId))
+  const snapshot = await getDocs(agreementsQuery)
+
+  return snapshot.docs
+    .map((agreementDoc) => buildAgreementRecord(agreementDoc.id, agreementDoc.data()))
+    .filter((agreement) => !agreement.deletedAt)
+    .sort((a, b) => {
+      const aDate = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0
+      const bDate = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0
+      return bDate - aDate
+    })
+}
+
+export async function getAgreement(userId: string, agreementId: string) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.agreements, agreementId))
+  if (!snapshot.exists()) return null
+
+  const agreement = buildAgreementRecord(snapshot.id, snapshot.data())
+  if (agreement.userId !== userId || agreement.deletedAt) return null
+
+  return agreement
+}
+
+export async function syncAgreementFromInvoice(userId: string, agreementId: string) {
+  const agreement = await getAgreement(userId, agreementId)
+  if (!agreement) return null
+
+  const [invoice, businessProfile, eventDetail] = await Promise.all([
+    getInvoice(userId, agreement.invoiceId),
+    getBusinessProfile(userId),
+    getInvoiceEventByInvoiceId(userId, agreement.invoiceId),
+  ])
+  if (!invoice) return agreement
+
+  await updateDoc(doc(firestore, firestoreCollections.agreements, agreement.id), {
+    ...buildAgreementSyncPayload(invoice, businessProfile, eventDetail),
+    updatedAt: serverTimestamp(),
+  })
+
+  return getAgreement(userId, agreementId)
+}
+
+export async function createAgreementFromInvoice(userId: string, invoiceId: string) {
+  const existingQuery = query(
+    collection(firestore, firestoreCollections.agreements),
+    where('userId', '==', userId),
+    where('invoiceId', '==', invoiceId),
+  )
+  const existingSnapshot = await getDocs(existingQuery)
+  const existingAgreement = existingSnapshot.docs
+    .map((agreementDoc) => buildAgreementRecord(agreementDoc.id, agreementDoc.data()))
+    .find((agreement) => !agreement.deletedAt)
+
+  if (existingAgreement) {
+    await syncAgreementFromInvoice(userId, existingAgreement.id)
+    return existingAgreement.id
+  }
+
+  const [invoice, businessProfile, eventDetail] = await Promise.all([
+    getInvoice(userId, invoiceId),
+    getBusinessProfile(userId),
+    getInvoiceEventByInvoiceId(userId, invoiceId),
+  ])
+  if (!invoice) throw new Error('INVOICE_NOT_FOUND')
+
+  const docRef = await addDoc(collection(firestore, firestoreCollections.agreements), {
+    userId,
+    invoiceId: invoice.id,
+    agreementNumber: `MOU-${invoice.invoiceNumber}`,
+    agreementDate: Timestamp.now(),
+    ...buildAgreementSyncPayload(invoice, businessProfile, eventDetail),
     clauses: getDefaultClauses(invoice, businessProfile),
     status: 'DRAFT',
     deletedAt: null,

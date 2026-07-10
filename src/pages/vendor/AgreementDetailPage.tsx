@@ -10,7 +10,7 @@ import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate } from '../../lib/formatters/date'
 import { makePrintTitle } from '../../lib/formatters/printTitle'
 import { generateAgreementPdf } from '../../lib/pdf/documentPdf'
-import { getAgreement } from '../../services/firestore/agreements'
+import { syncAgreementFromInvoice } from '../../services/firestore/agreements'
 import { getBusinessProfile } from '../../services/firestore/businessProfiles'
 import type { AgreementRecord, BusinessProfile } from '../../types/domain'
 
@@ -42,7 +42,7 @@ export function AgreementDetailPage() {
 
     try {
       const [agreementData, profileData] = await Promise.all([
-        getAgreement(profile.uid, agreementId),
+        syncAgreementFromInvoice(profile.uid, agreementId),
         getBusinessProfile(profile.uid),
       ])
       if (!agreementData) {
