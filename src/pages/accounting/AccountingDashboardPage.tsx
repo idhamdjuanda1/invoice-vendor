@@ -27,6 +27,7 @@ import {
   seedAccountingCategories,
   softDeleteAccountingPayable,
   softDeleteAccountingTransaction,
+  updateAccountingAsset,
   updateAccountingCategory,
   updateAccountingTransaction,
 } from '../../services/firestore/accounting'
@@ -316,6 +317,7 @@ export function AccountingDashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [editingTransactionId, setEditingTransactionId] = useState('')
+  const [editingAssetId, setEditingAssetId] = useState('')
   const [isDeletingTransaction, setIsDeletingTransaction] = useState('')
   const [isUpdatingPayable, setIsUpdatingPayable] = useState('')
   const [message, setMessage] = useState('')
@@ -593,7 +595,7 @@ export function AccountingDashboardPage() {
     setMessage('')
     setErrorMessage('')
     try {
-      await createAccountingAsset(ownerUserId, {
+      const payload = {
         name: assetInput.name,
         purchaseDate: assetInput.purchaseDate,
         purchasePrice: Number(assetInput.purchasePrice),
@@ -602,16 +604,52 @@ export function AccountingDashboardPage() {
         depreciationMonths: Number(assetInput.depreciationMonths),
         location: assetInput.location,
         notes: assetInput.notes,
-      })
+      }
+      if (editingAssetId) {
+        await updateAccountingAsset(ownerUserId, editingAssetId, payload)
+      } else {
+        await createAccountingAsset(ownerUserId, payload)
+      }
       setAssetInput((current) => ({ ...current, name: '', purchasePrice: '', location: '', notes: '' }))
+      setEditingAssetId('')
       await loadAccounting()
-      setMessage('Aset berhasil ditambahkan.')
+      setMessage(editingAssetId ? 'Aset berhasil diperbarui dan saldo kas/bank sudah disesuaikan.' : 'Aset berhasil ditambahkan.')
     } catch (error) {
       console.error('Failed to create accounting asset', error)
-      setErrorMessage('Aset belum bisa disimpan.')
+      setErrorMessage('Aset belum bisa disimpan atau diperbarui.')
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function handleEditAsset(asset: AccountingAssetRecord) {
+    setEditingAssetId(asset.id)
+    setAssetInput({
+      name: asset.name,
+      purchaseDate: toInputDate(asset.purchaseDate) || today,
+      purchasePrice: String(asset.purchasePrice),
+      paymentAccountType: asset.paymentAccountType,
+      condition: asset.condition,
+      depreciationMonths: String(asset.depreciationMonths),
+      location: asset.location ?? '',
+      notes: asset.notes ?? '',
+    })
+    setMessage('Mode edit aset aktif. Ubah data lalu klik Simpan Perubahan.')
+    setErrorMessage('')
+  }
+
+  function cancelEditAsset() {
+    setEditingAssetId('')
+    setAssetInput({
+      name: '',
+      purchaseDate: today,
+      purchasePrice: '',
+      paymentAccountType: 'BANK',
+      condition: 'BAIK',
+      depreciationMonths: '24',
+      location: '',
+      notes: '',
+    })
   }
 
   async function handleCreatePayable(event: FormEvent<HTMLFormElement>) {
@@ -1022,7 +1060,16 @@ export function AccountingDashboardPage() {
           {activeTab === 'assets' ? (
             <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
               <Card>
-                <CardHeader><h2 className="text-base font-semibold">Tambah Aset</h2></CardHeader>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="text-base font-semibold">{editingAssetId ? 'Edit Aset' : 'Tambah Aset'}</h2>
+                    {editingAssetId ? (
+                      <Button className="min-h-9 px-3 py-1.5" icon={<X size={15} />} onClick={cancelEditAsset} type="button" variant="secondary">
+                        Batal
+                      </Button>
+                    ) : null}
+                  </div>
+                </CardHeader>
                 <CardContent>
                   <form className="grid gap-4" onSubmit={handleCreateAsset}>
                     <Input label="Nama Aset" value={assetInput.name} onChange={(event) => setAssetInput((current) => ({ ...current, name: event.target.value }))} />
@@ -1051,7 +1098,9 @@ export function AccountingDashboardPage() {
                     </label>
                     <Input label="Lokasi" value={assetInput.location} onChange={(event) => setAssetInput((current) => ({ ...current, location: event.target.value }))} />
                     <Input label="Catatan" value={assetInput.notes} onChange={(event) => setAssetInput((current) => ({ ...current, notes: event.target.value }))} />
-                    <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>Tambah Aset</Button>
+                    <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>
+                      {editingAssetId ? 'Simpan Perubahan' : 'Tambah Aset'}
+                    </Button>
                   </form>
                 </CardContent>
               </Card>
@@ -1073,7 +1122,12 @@ export function AccountingDashboardPage() {
                             Dibayar dari {accountingAccountTypeLabels[asset.paymentAccountType]} - Penyusutan {formatCurrency(asset.monthlyDepreciation)} / bulan selama {asset.depreciationMonths} bulan
                           </p>
                         </div>
-                        <p className="font-bold">{formatCurrency(asset.purchasePrice)}</p>
+                        <div className="grid gap-2 sm:justify-items-end">
+                          <p className="font-bold">{formatCurrency(asset.purchasePrice)}</p>
+                          <Button className="min-h-9 px-3 py-1.5" icon={<Edit3 size={15} />} onClick={() => handleEditAsset(asset)} type="button" variant="secondary">
+                            Edit
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

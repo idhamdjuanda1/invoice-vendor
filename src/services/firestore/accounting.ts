@@ -360,6 +360,59 @@ export async function createAccountingAsset(userId: string, input: AccountingAss
   })
 }
 
+export async function updateAccountingAsset(userId: string, assetId: string, input: AccountingAssetInput) {
+  const assetSnapshot = await getDoc(doc(firestore, firestoreCollections.accountingAssets, assetId))
+  if (!assetSnapshot.exists()) throw new Error('ACCOUNTING_ASSET_NOT_FOUND')
+
+  const asset = buildAsset(assetSnapshot.id, assetSnapshot.data())
+  if (asset.userId !== userId || asset.deletedAt) throw new Error('ACCOUNTING_ASSET_NOT_FOUND')
+  if (!input.name.trim()) throw new Error('ACCOUNTING_ASSET_NAME_REQUIRED')
+  if (!input.purchasePrice || input.purchasePrice <= 0) throw new Error('ACCOUNTING_AMOUNT_INVALID')
+
+  const depreciationMonths = Math.max(Number(input.depreciationMonths || 12), 1)
+  const monthlyDepreciation = Math.round(input.purchasePrice / depreciationMonths)
+
+  await updateDoc(doc(firestore, firestoreCollections.accountingAssets, assetId), {
+    userId,
+    name: input.name.trim(),
+    purchaseDate: dateStringToTimestamp(input.purchaseDate),
+    purchasePrice: input.purchasePrice,
+    paymentAccountType: input.paymentAccountType,
+    condition: input.condition,
+    location: input.location.trim() || null,
+    notes: input.notes.trim() || null,
+    depreciationMethod: 'STRAIGHT_LINE',
+    depreciationMonths,
+    monthlyDepreciation,
+    updatedAt: serverTimestamp(),
+  })
+
+  const transactionSnapshot = await getDocs(query(
+    collection(firestore, firestoreCollections.accountingTransactions),
+    where('userId', '==', userId),
+    where('referenceId', '==', assetId),
+  ))
+  const assetPurchaseTransaction = transactionSnapshot.docs
+    .map((transactionDoc) => buildTransaction(transactionDoc.id, transactionDoc.data()))
+    .find((transaction) => transaction.referenceType === 'ASSET_PURCHASE' && !transaction.deletedAt)
+
+  if (!assetPurchaseTransaction) return
+
+  await updateDoc(doc(firestore, firestoreCollections.accountingTransactions, assetPurchaseTransaction.id), {
+    userId,
+    type: 'EXPENSE',
+    date: dateStringToTimestamp(input.purchaseDate),
+    accountType: input.paymentAccountType,
+    categoryId: null,
+    categoryName: 'Pembelian Aset',
+    amount: input.purchasePrice,
+    description: `Pembelian aset ${input.name.trim()}`,
+    referenceType: 'ASSET_PURCHASE',
+    referenceId: assetId,
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function listAccountingPayables(userId: string) {
   const snapshot = await getDocs(query(collection(firestore, firestoreCollections.accountingPayables), where('userId', '==', userId)))
   return snapshot.docs
