@@ -112,7 +112,14 @@ function getAccountName(accountType: AccountingAccountType) {
   return accountType === 'CASH' ? 'Kas' : 'Bank'
 }
 
-function buildJournalLines(transactions: AccountingTransactionRecord[], assets: AccountingAssetRecord[]): JournalLine[] {
+function isCurrentAccountingMonth(value: string) {
+  if (!value) return false
+  const now = new Date()
+  const [year, month] = value.split('-')
+  return Number(year) === now.getFullYear() && Number(month) === now.getMonth() + 1
+}
+
+function buildJournalLines(transactions: AccountingTransactionRecord[], assets: AccountingAssetRecord[], payables: AccountingPayableRecord[]): JournalLine[] {
   const transactionLines = transactions.flatMap((transaction) => {
     const date = toInputDate(transaction.date) || today
     const source = transaction.referenceType === 'INVOICE_PAYMENT'
@@ -195,7 +202,31 @@ function buildJournalLines(transactions: AccountingTransactionRecord[], assets: 
     ]
   })
 
-  return [...transactionLines, ...depreciationLines].sort((a, b) => b.date.localeCompare(a.date))
+  const payableLines = payables.flatMap((payable) => {
+    const date = toInputDate(payable.dueDate) || today
+    return [
+      {
+        id: `${payable.id}-payable-debit`,
+        date,
+        account: `Beban - ${payable.description || 'Hutang'}`,
+        description: `${payable.vendorName} - ${payable.description}`,
+        debit: payable.amount,
+        credit: 0,
+        source: 'Hutang',
+      },
+      {
+        id: `${payable.id}-payable-credit`,
+        date,
+        account: 'Hutang Usaha',
+        description: `${payable.vendorName} - ${payable.description}`,
+        debit: 0,
+        credit: payable.amount,
+        source: 'Hutang',
+      },
+    ]
+  })
+
+  return [...transactionLines, ...depreciationLines, ...payableLines].sort((a, b) => b.date.localeCompare(a.date))
 }
 
 function buildLedgerRows(journalLines: JournalLine[]): LedgerRow[] {
@@ -382,15 +413,20 @@ export function AccountingDashboardPage() {
     .sort((a, b) => (toInputDate(a.eventDate) || '').localeCompare(toInputDate(b.eventDate) || '')), [invoices])
   const receivableTotal = useMemo(() => receivables.reduce((sum, invoice) => sum + invoice.remainingAmount, 0), [receivables])
   const payableTotal = useMemo(() => payables.reduce((sum, payable) => sum + Math.max(payable.amount - payable.paidAmount, 0), 0), [payables])
+  const payableExpenseThisMonth = useMemo(() => payables
+    .filter((payable) => isCurrentAccountingMonth(toInputDate(payable.dueDate) || ''))
+    .reduce((sum, payable) => sum + payable.amount, 0), [payables])
   const summary = useMemo(() => {
     const baseSummary = buildAccountingSummary(allTransactions, assets)
     return {
       ...baseSummary,
+      monthlyExpense: baseSummary.monthlyExpense + payableExpenseThisMonth,
+      netProfit: baseSummary.netProfit - payableExpenseThisMonth,
       receivable: receivableTotal,
       payable: payableTotal,
     }
-  }, [allTransactions, assets, payableTotal, receivableTotal])
-  const journalLines = useMemo(() => buildJournalLines(allTransactions, assets), [allTransactions, assets])
+  }, [allTransactions, assets, payableExpenseThisMonth, payableTotal, receivableTotal])
+  const journalLines = useMemo(() => buildJournalLines(allTransactions, assets, payables), [allTransactions, assets, payables])
   const ledgerRows = useMemo(() => buildLedgerRows(journalLines), [journalLines])
   const cashFlowTotals = useMemo(() => allTransactions.reduce((total, transaction) => {
     if (transaction.type === 'INCOME') return { ...total, inflow: total.inflow + transaction.amount, net: total.net + transaction.amount }
