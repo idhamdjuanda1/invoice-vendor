@@ -18,8 +18,28 @@ service cloud.firestore {
       return hasProfile() ? get(userPath(request.auth.uid)).data.role : null;
     }
 
+    function currentProfile() {
+      return get(userPath(request.auth.uid)).data;
+    }
+
     function isSuperAdmin() {
       return currentRole() == 'super_admin';
+    }
+
+    function isFreelance() {
+      return currentRole() == 'freelance';
+    }
+
+    function freelanceVendorId() {
+      return currentProfile().vendorId;
+    }
+
+    function freelanceId() {
+      return currentProfile().freelancerId;
+    }
+
+    function isFreelanceForVendor(userId) {
+      return isFreelance() && freelanceVendorId() == userId;
     }
 
     function isOwner(userId) {
@@ -51,6 +71,23 @@ service cloud.firestore {
         && request.resource.data.activationExpiresAt is timestamp
         && request.resource.data.activationExpiresAt > request.time
         && request.resource.data.activationExpiresAt <= request.time + duration.value(25, 'h')
+        && request.resource.data.deletedAt == null
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isFreelanceProfileCreate(userId) {
+      return isOwner(userId)
+        && request.auth.token.email == request.resource.data.email
+        && request.resource.data.uid == userId
+        && request.resource.data.role == 'freelance'
+        && request.resource.data.vendorId is string
+        && request.resource.data.freelancerId is string
+        && request.resource.data.freelanceRoles is list
+        && request.resource.data.isActive == true
+        && request.resource.data.isSuspended == false
+        && request.resource.data.activationTokenId == null
+        && request.resource.data.activationExpiresAt == null
         && request.resource.data.deletedAt == null
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
@@ -93,6 +130,41 @@ service cloud.firestore {
 
     function keepsOwner() {
       return request.resource.data.userId == resource.data.userId;
+    }
+
+    function isFreelanceInviteAccept() {
+      return signedIn()
+        && resource.data.status == 'PENDING'
+        && resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'ACCEPTED'
+        && request.resource.data.acceptedByUid == request.auth.uid
+        && request.resource.data.acceptedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'acceptedByUid',
+          'acceptedAt',
+          'updatedAt'
+        ]);
+    }
+
+    function isFreelancerActivationUpdate() {
+      return signedIn()
+        && resource.data.email == request.auth.token.email
+        && resource.data.inviteStatus == 'PENDING'
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.authUid == request.auth.uid
+        && request.resource.data.inviteStatus == 'ACCEPTED'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'authUid',
+          'inviteStatus',
+          'updatedAt'
+        ]);
+    }
+
+    function isOwnJobDeliverableWrite() {
+      return signedIn()
+        && isFreelanceForVendor(request.resource.data.userId)
+        && request.resource.data.freelancerId == freelanceId();
     }
 
 
@@ -146,7 +218,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSuperAdmin() || isOwner(userId);
       allow create: if isBootstrapSuperAdminCreate(userId)
-        || isVendorFreeTrialProfileCreate(userId);
+        || isVendorFreeTrialProfileCreate(userId)
+        || isFreelanceProfileCreate(userId);
       allow update: if isSuperAdmin() || isVendorActivationRenewal(userId);
       allow delete: if false;
     }
@@ -225,7 +298,7 @@ service cloud.firestore {
     }
 
     match /invoices/{invoiceId} {
-      allow read: if resource.data.isPublic == true || resource.data.publicFormEnabled == true || isSuperAdmin() || isOwner(resource.data.userId);
+      allow read: if resource.data.isPublic == true || resource.data.publicFormEnabled == true || isSuperAdmin() || isOwner(resource.data.userId) || isFreelanceForVendor(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || isOwner(resource.data.userId) || isPublicClientFormInvoiceUpdate();
       allow delete: if false;
@@ -239,23 +312,37 @@ service cloud.firestore {
     }
 
     match /invoiceEvents/{eventId} {
-      allow read: if resource.data.publicFormEnabled == true || isSuperAdmin() || isOwner(resource.data.userId);
+      allow read: if resource.data.publicFormEnabled == true || isSuperAdmin() || isOwner(resource.data.userId) || isFreelanceForVendor(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || isOwner(resource.data.userId) || isPublicClientFormEventUpdate();
       allow delete: if false;
     }
 
     match /freelancers/{freelancerId} {
-      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId) || isFreelanceForVendor(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner()) || isFreelancerActivationUpdate();
+      allow delete: if false;
+    }
+
+    match /teamAssignments/{assignmentId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId) || isFreelanceForVendor(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
       allow delete: if false;
     }
 
-    match /teamAssignments/{assignmentId} {
-      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+    match /freelanceInvites/{inviteId} {
+      allow read: if resource.data.status == 'PENDING' || isSuperAdmin() || isOwner(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
-      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId) || isFreelanceInviteAccept();
+      allow delete: if false;
+    }
+
+    match /jobDeliverables/{deliverableId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId) || isFreelanceForVendor(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId) || isOwnJobDeliverableWrite();
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner()) || (isFreelanceForVendor(resource.data.userId) && request.resource.data.userId == resource.data.userId && request.resource.data.freelancerId == resource.data.freelancerId && resource.data.freelancerId == freelanceId());
       allow delete: if false;
     }
 

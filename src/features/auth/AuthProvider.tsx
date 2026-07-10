@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       setActivationAccess(createActivationAccessState())
       setStatus('unauthenticated')
-      return
+      return null
     }
 
     setStatus('loading')
@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(loadedProfile)
       setActivationAccess(loadedActivationAccess)
       setStatus('authenticated')
+      return loadedProfile
     } catch (error) {
       console.warn('User profile could not be loaded.', error)
       setProfile(null)
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       )
       setStatus('authenticated')
+      return null
     }
   }, [])
 
@@ -68,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async ({ email, password }: LoginInput) => {
       const credential = await signInWithEmailAndPassword(firebaseAuth, email, password)
       setFirebaseUser(credential.user)
-      await loadProfile(credential.user)
+      return loadProfile(credential.user)
     },
     [loadProfile],
   )
@@ -102,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       isSuperAdmin: profile?.role === 'super_admin',
       isVendor: profile?.role === 'user',
+      isFreelance: profile?.role === 'freelance',
       accountBlockedReason,
       activationAccess,
       login,

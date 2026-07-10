@@ -24,7 +24,7 @@ import { getBusinessProfile, syncPricelistsWithBusinessProfile } from '../../ser
 import type { BusinessProfile } from '../../types/domain'
 
 type DashboardLayoutProps = {
-  role: 'vendor' | 'admin'
+  role: 'vendor' | 'admin' | 'freelance'
 }
 
 const vendorNav = [
@@ -47,8 +47,15 @@ const adminNav = [
   { label: 'Backup', href: '/admin/backup', icon: Upload },
 ]
 
+const freelanceNav = [
+  { label: 'Dashboard', href: '/freelance', icon: Home },
+  { label: 'Jadwal', href: '/freelance/schedule', icon: FileText },
+  { label: 'Daftar Job', href: '/freelance/jobs', icon: Boxes },
+  { label: 'Profil', href: '/freelance/profile', icon: UserRound },
+]
+
 export function DashboardLayout({ role }: DashboardLayoutProps) {
-  const navigation = role === 'admin' ? adminNav : vendorNav
+  const navigation = role === 'admin' ? adminNav : role === 'freelance' ? freelanceNav : vendorNav
   const { logout, profile } = useAuth()
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null)
 
@@ -81,7 +88,7 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
     }
   }, [profile?.uid, role])
 
-  const displayName = role === 'vendor' ? businessProfile?.vendorName || profile?.name || 'Vendor' : profile?.name || 'Super Admin'
+  const displayName = role === 'vendor' ? businessProfile?.vendorName || profile?.name || 'Vendor' : profile?.name || (role === 'admin' ? 'Super Admin' : 'Freelance')
   const displayEmail = businessProfile?.email || profile?.email || ''
 
   return (
@@ -89,7 +96,7 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-app-border bg-white p-5 lg:block">
         <div className="text-xl font-bold text-app-text">Invoice Vendor</div>
         <p className="mt-1 text-xs uppercase tracking-[0.16em] text-app-gold">
-          {role === 'admin' ? 'Super Admin' : 'Vendor'}
+          {role === 'admin' ? 'Super Admin' : role === 'freelance' ? 'Freelance' : 'Vendor'}
         </p>
         <nav className="mt-8 grid gap-1">
           {navigation.map((item) => (
@@ -131,7 +138,7 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden rounded-full border border-app-border px-3 py-1 text-xs font-semibold text-neutral-600 sm:block">
-                {profile?.role === 'super_admin' ? 'Super Admin' : 'Vendor'}
+                {profile?.role === 'super_admin' ? 'Super Admin' : profile?.role === 'freelance' ? 'Freelance' : 'Vendor'}
               </div>
               <Button
                 aria-label="Logout"

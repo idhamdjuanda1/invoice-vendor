@@ -10,6 +10,8 @@ import { getInvoiceEventByInvoiceId } from './invoiceEvents'
 export type TeamAssignmentInput = {
   photographers: string[]
   videographers: string[]
+  photoEditors: string[]
+  videoEditors: string[]
   assistants: string[]
 }
 
@@ -23,11 +25,11 @@ export type FreelancerScheduleItem = {
   eventTime: string
 }
 
-function memberFromFreelancer(freelancer: FreelanceRecord): TeamAssignmentMember {
+function memberFromFreelancer(freelancer: FreelanceRecord, freelanceType: FreelanceType): TeamAssignmentMember {
   return {
     freelanceId: freelancer.id,
     fullName: freelancer.fullName,
-    freelanceType: freelancer.freelanceType,
+    freelanceType,
     whatsappNumber: freelancer.whatsappNumber,
     email: freelancer.email,
   }
@@ -40,6 +42,8 @@ function buildAssignment(id: string, data: Record<string, unknown>): TeamAssignm
     invoiceId: String(data.invoiceId ?? ''),
     photographers: Array.isArray(data.photographers) ? (data.photographers as TeamAssignmentMember[]) : [],
     videographers: Array.isArray(data.videographers) ? (data.videographers as TeamAssignmentMember[]) : [],
+    photoEditors: Array.isArray(data.photoEditors) ? (data.photoEditors as TeamAssignmentMember[]) : [],
+    videoEditors: Array.isArray(data.videoEditors) ? (data.videoEditors as TeamAssignmentMember[]) : [],
     assistants: Array.isArray(data.assistants) ? (data.assistants as TeamAssignmentMember[]) : [],
     createdAt: (data.createdAt as TeamAssignmentRecord['createdAt']) ?? null,
     updatedAt: (data.updatedAt as TeamAssignmentRecord['updatedAt']) ?? null,
@@ -49,7 +53,13 @@ function buildAssignment(id: string, data: Record<string, unknown>): TeamAssignm
 
 export function getAssignmentMembers(assignment: TeamAssignmentRecord | null) {
   if (!assignment) return []
-  return [...assignment.photographers, ...assignment.videographers, ...assignment.assistants]
+  return [
+    ...assignment.photographers,
+    ...assignment.videographers,
+    ...assignment.photoEditors,
+    ...assignment.videoEditors,
+    ...assignment.assistants,
+  ]
 }
 
 export async function listTeamAssignments(userId: string) {
@@ -72,14 +82,16 @@ export async function saveTeamAssignment(userId: string, invoiceId: string, inpu
   const mapMembers = (ids: string[], type: FreelanceType) =>
     ids
       .map((id) => byId.get(id))
-      .filter((freelancer): freelancer is FreelanceRecord => freelancer?.freelanceType === type)
-      .map(memberFromFreelancer)
+      .filter((freelancer): freelancer is FreelanceRecord => Boolean(freelancer?.roles.includes(type)))
+      .map((freelancer) => memberFromFreelancer(freelancer, type))
 
   const payload = {
     userId,
     invoiceId,
     photographers: mapMembers(input.photographers, 'FOTOGRAFER'),
     videographers: mapMembers(input.videographers, 'VIDEOGRAFER'),
+    photoEditors: mapMembers(input.photoEditors, 'EDITOR_FOTO'),
+    videoEditors: mapMembers(input.videoEditors, 'EDITOR_VIDEO'),
     assistants: mapMembers(input.assistants, 'ASISTEN'),
     updatedAt: serverTimestamp(),
   }

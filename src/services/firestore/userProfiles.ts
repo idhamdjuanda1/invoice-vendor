@@ -5,7 +5,7 @@ import { firestoreCollections } from '../../constants/firestore'
 import type { ActivationAccessState } from '../../features/auth/authTypes'
 import { FREE_TRIAL_TOKEN_ID } from '../../lib/activation'
 import { firestore } from '../../lib/firebase/client'
-import type { UserProfile } from '../../types/domain'
+import type { FreelanceRole, UserProfile } from '../../types/domain'
 
 function buildUserProfile(id: string, data: Record<string, unknown>): UserProfile {
   return {
@@ -13,7 +13,10 @@ function buildUserProfile(id: string, data: Record<string, unknown>): UserProfil
     uid: String(data.uid ?? id),
     name: String(data.name ?? ''),
     email: String(data.email ?? ''),
-    role: data.role === 'super_admin' ? 'super_admin' : 'user',
+    role: data.role === 'super_admin' ? 'super_admin' : data.role === 'freelance' ? 'freelance' : 'user',
+    vendorId: typeof data.vendorId === 'string' ? data.vendorId : null,
+    freelancerId: typeof data.freelancerId === 'string' ? data.freelancerId : null,
+    freelanceRoles: Array.isArray(data.freelanceRoles) ? (data.freelanceRoles as FreelanceRole[]) : [],
     isActive: Boolean(data.isActive),
     isSuspended: Boolean(data.isSuspended),
     activatedAt: (data.activatedAt as UserProfile['activatedAt']) ?? null,
@@ -52,6 +55,9 @@ export async function bootstrapSuperAdminProfile(firebaseUser: User) {
       name: firebaseUser.displayName ?? 'Super Admin',
       email: firebaseUser.email ?? configuredEmail,
       role: 'super_admin',
+      vendorId: null,
+      freelancerId: null,
+      freelanceRoles: [],
       isActive: true,
       isSuspended: false,
       activatedAt: now,
@@ -112,7 +118,7 @@ export async function validateVendorActivationAccess(profile: UserProfile | null
     })
   }
 
-  if (profile.role === 'super_admin') {
+  if (profile.role === 'super_admin' || profile.role === 'freelance') {
     return createActivationAccessState({ code: 'active' })
   }
 

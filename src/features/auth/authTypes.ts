@@ -28,9 +28,10 @@ export type AuthContextValue = {
   status: AuthStatus
   isSuperAdmin: boolean
   isVendor: boolean
+  isFreelance: boolean
   accountBlockedReason: string | null
   activationAccess: ActivationAccessState
-  login: (input: LoginInput) => Promise<void>
+  login: (input: LoginInput) => Promise<UserProfile | null>
   registerVendor: (input: RegisterInput) => Promise<void>
   logout: () => Promise<void>
   refreshProfile: () => Promise<void>

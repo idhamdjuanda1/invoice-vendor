@@ -10,7 +10,11 @@ import { AdminUserDetailPage } from '../pages/admin/AdminUserDetailPage'
 import { AdminUsersPage } from '../pages/admin/AdminUsersPage'
 import { LoginPage } from '../pages/auth/LoginPage'
 import { RegisterPage } from '../pages/auth/RegisterPage'
+import { FreelanceJobDetailPage } from '../pages/freelance/FreelanceJobDetailPage'
+import { FreelanceJobsPage } from '../pages/freelance/FreelanceJobsPage'
+import { FreelanceProfilePage } from '../pages/freelance/FreelanceProfilePage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { FreelanceActivatePage } from '../pages/public/FreelanceActivatePage'
 import { PublicInvoicePage } from '../pages/public/PublicInvoicePage'
 import { PublicClientFormPage } from '../pages/public/PublicClientFormPage'
 import { PublicPricelistPage } from '../pages/public/PublicPricelistPage'
@@ -86,8 +90,23 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    element: (
+      <ProtectedRoute allowedRoles={['freelance']}>
+        <DashboardLayout role="freelance" />
+      </ProtectedRoute>
+    ),
+    children: [
+      { path: '/freelance', element: <FreelanceJobsPage /> },
+      { path: '/freelance/schedule', element: <FreelanceJobsPage /> },
+      { path: '/freelance/jobs', element: <FreelanceJobsPage /> },
+      { path: '/freelance/jobs/:invoiceId', element: <FreelanceJobDetailPage /> },
+      { path: '/freelance/profile', element: <FreelanceProfilePage /> },
+    ],
+  },
+  {
     element: <PublicLayout />,
     children: [
+      { path: '/freelance/activate/:token', element: <FreelanceActivatePage /> },
       { path: '/invoice/:slug', element: <PublicInvoicePage /> },
       { path: '/form/:slug', element: <PublicClientFormPage /> },
       { path: '/pricelist/:slug', element: <PublicPricelistPage /> },

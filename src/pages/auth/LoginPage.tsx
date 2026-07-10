@@ -23,8 +23,9 @@ export function LoginPage() {
     setIsSubmitting(true)
 
     try {
-      await login({ email, password })
-      navigate('/dashboard', { replace: true })
+      const profile = await login({ email, password })
+      const nextPath = profile?.role === 'super_admin' ? '/admin' : profile?.role === 'freelance' ? '/freelance' : '/dashboard'
+      navigate(nextPath, { replace: true })
     } catch (loginError) {
       setError(getFriendlyAuthError(loginError))
     } finally {

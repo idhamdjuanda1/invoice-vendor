@@ -8,9 +8,10 @@ import { useAuth } from '../../features/auth/useAuth'
 import { eventFieldDefinitions, eventStatusLabels, eventStatusStyles, eventTypeLabels, getPrimaryEventLocation, getPrimaryEventTime } from '../../lib/events/eventDetails'
 import { getInvoiceEventByInvoiceId, publishClientForm, upsertInvoiceEvent } from '../../services/firestore/invoiceEvents'
 import { freelanceTypeLabels, listFreelancers } from '../../services/firestore/freelancers'
+import { editJobStatusLabels, listJobDeliverables } from '../../services/firestore/jobDeliverables'
 import { getAssignmentConflicts, getAssignmentMembers, getTeamAssignmentByInvoiceId, saveTeamAssignment } from '../../services/firestore/teamAssignments'
 import { buildTeamMailtoUrl, buildTeamMessage, buildTeamWhatsappUrls, logTeamNotification } from '../../services/notifications/teamNotifications'
-import type { FreelanceRecord, FreelanceType, InvoiceEventDetail, InvoiceRecord, TeamAssignmentRecord } from '../../types/domain'
+import type { FreelanceRecord, FreelanceType, InvoiceEventDetail, InvoiceRecord, JobDeliverableRecord, TeamAssignmentRecord } from '../../types/domain'
 
 type EventTeamPanelProps = {
   invoice: InvoiceRecord
@@ -38,6 +39,41 @@ function buildClientFormWhatsappUrl(invoice: InvoiceRecord, formUrl: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
 }
 
+function getFilledDeliverableLinks(deliverable: JobDeliverableRecord) {
+  return [
+    ['Foto RAW', deliverable.links.photoRawUrl],
+    ['Foto Edit', deliverable.links.photoEditedUrl],
+    ['Album', deliverable.links.albumUrl],
+    ['Footage Video', deliverable.links.videoFootageUrl],
+    ['Video Highlight', deliverable.links.videoHighlightUrl],
+    ['Video Full', deliverable.links.videoFullUrl],
+    ['Revisi', deliverable.links.revisionUrl],
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]))
+}
+
+function buildClientDeliveryMessage(invoice: InvoiceRecord, deliverables: JobDeliverableRecord[]) {
+  const linkRows = deliverables.flatMap((deliverable) => getFilledDeliverableLinks(deliverable))
+  return [
+    `Halo ${invoice.clientName || 'Kak'},`,
+    '',
+    'Berikut adalah hasil dokumentasi acara Anda.',
+    '',
+    ...linkRows.map(([label, url]) => `${label}: ${url}`),
+    '',
+    'Terima kasih telah menggunakan jasa kami.',
+  ].join('\n')
+}
+
+function buildClientDeliveryWhatsappUrl(invoice: InvoiceRecord, message: string) {
+  const phone = normalizeWhatsapp(invoice.clientWhatsappNumber)
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+}
+
+function buildClientDeliveryMailtoUrl(invoice: InvoiceRecord, message: string) {
+  if (!invoice.clientEmail) return ''
+  return `mailto:${encodeURIComponent(invoice.clientEmail)}?subject=${encodeURIComponent(`Hasil Dokumentasi - ${invoice.clientName}`)}&body=${encodeURIComponent(message)}`
+}
+
 export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
   const { profile } = useAuth()
   const [eventDetail, setEventDetail] = useState<InvoiceEventDetail | null>(null)
@@ -49,9 +85,13 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
   })
   const [freelancers, setFreelancers] = useState<FreelanceRecord[]>([])
   const [assignment, setAssignment] = useState<TeamAssignmentRecord | null>(null)
+  const [deliverables, setDeliverables] = useState<JobDeliverableRecord[]>([])
+  const [clientDeliveryMessage, setClientDeliveryMessage] = useState('')
   const [selectedIds, setSelectedIds] = useState<Record<FreelanceType, string[]>>({
     FOTOGRAFER: [],
     VIDEOGRAFER: [],
+    EDITOR_FOTO: [],
+    EDITOR_VIDEO: [],
     ASISTEN: [],
   })
   const [conflictMessage, setConflictMessage] = useState('')
@@ -72,6 +112,8 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
         listFreelancers(profile.uid, false),
         getTeamAssignmentByInvoiceId(profile.uid, invoice.id),
       ])
+      const deliverableList = await listJobDeliverables(profile.uid)
+      const invoiceDeliverables = deliverableList.filter((deliverable) => deliverable.invoiceId === invoice.id)
       setEventDetail(eventData)
       setEventInputDetails(eventData?.details ?? {})
       setEventInputLocation({
@@ -81,16 +123,20 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
       })
       setFreelancers(freelancerList)
       setAssignment(assignmentData)
+      setDeliverables(invoiceDeliverables)
+      setClientDeliveryMessage(buildClientDeliveryMessage(invoice, invoiceDeliverables))
       setSelectedIds({
         FOTOGRAFER: assignmentData?.photographers.map((member) => member.freelanceId) ?? [],
         VIDEOGRAFER: assignmentData?.videographers.map((member) => member.freelanceId) ?? [],
+        EDITOR_FOTO: assignmentData?.photoEditors.map((member) => member.freelanceId) ?? [],
+        EDITOR_VIDEO: assignmentData?.videoEditors.map((member) => member.freelanceId) ?? [],
         ASISTEN: assignmentData?.assistants.map((member) => member.freelanceId) ?? [],
       })
     } catch (error) {
       console.error('Failed to load event/team panel', error)
       setErrorMessage('Detail acara atau data tim belum bisa dimuat.')
     }
-  }, [invoice.eventLocation, invoice.id, profile?.uid])
+  }, [invoice, profile?.uid])
 
   useEffect(() => {
     void loadPanel()
@@ -168,11 +214,19 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
     setConflictMessage('')
 
     try {
-      const memberIds = [...selectedIds.FOTOGRAFER, ...selectedIds.VIDEOGRAFER, ...selectedIds.ASISTEN]
+      const memberIds = [
+        ...selectedIds.FOTOGRAFER,
+        ...selectedIds.VIDEOGRAFER,
+        ...selectedIds.EDITOR_FOTO,
+        ...selectedIds.EDITOR_VIDEO,
+        ...selectedIds.ASISTEN,
+      ]
       const conflicts = await getAssignmentConflicts(profile.uid, invoice, memberIds)
       await saveTeamAssignment(profile.uid, invoice.id, {
         photographers: selectedIds.FOTOGRAFER,
         videographers: selectedIds.VIDEOGRAFER,
+        photoEditors: selectedIds.EDITOR_FOTO,
+        videoEditors: selectedIds.EDITOR_VIDEO,
         assistants: selectedIds.ASISTEN,
       }, freelancers)
       await loadPanel()
@@ -225,6 +279,32 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
     } finally {
       setLoadingAction('')
     }
+  }
+
+  function handleSendClientDelivery(channel: 'whatsapp' | 'email') {
+    const filledLinks = deliverables.flatMap((deliverable) => getFilledDeliverableLinks(deliverable))
+    if (filledLinks.length === 0) {
+      setErrorMessage('Belum ada link hasil editing yang bisa dikirim ke klien.')
+      return
+    }
+
+    if (channel === 'whatsapp') {
+      if (!invoice.clientWhatsappNumber) {
+        setErrorMessage('Nomor WhatsApp klien belum tersedia.')
+        return
+      }
+      window.open(buildClientDeliveryWhatsappUrl(invoice, clientDeliveryMessage), '_blank', 'noopener,noreferrer')
+      setMessage('WhatsApp klien sudah dibuka. Silakan cek dan kirim pesannya.')
+      return
+    }
+
+    const mailtoUrl = buildClientDeliveryMailtoUrl(invoice, clientDeliveryMessage)
+    if (!mailtoUrl) {
+      setErrorMessage('Email klien belum tersedia.')
+      return
+    }
+    window.location.href = mailtoUrl
+    setMessage('Email klien sudah dibuka di aplikasi email perangkat ini.')
   }
 
   return (
@@ -361,8 +441,8 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
           <h2 className="flex items-center gap-2 text-base font-semibold"><Users size={18} /> Tim yang Bertugas</h2>
         </CardHeader>
         <CardContent className="grid gap-5">
-          {(['FOTOGRAFER', 'VIDEOGRAFER', 'ASISTEN'] as FreelanceType[]).map((type) => {
-            const options = freelancers.filter((freelancer) => freelancer.freelanceType === type)
+          {(['FOTOGRAFER', 'VIDEOGRAFER', 'EDITOR_FOTO', 'EDITOR_VIDEO', 'ASISTEN'] as FreelanceType[]).map((type) => {
+            const options = freelancers.filter((freelancer) => freelancer.roles.includes(type))
             return (
               <div className="grid gap-2" key={type}>
                 <p className="text-sm font-semibold">{freelanceTypeLabels[type]}</p>
@@ -399,6 +479,65 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
             </Button>
             <Button disabled={loadingAction === 'email'} icon={loadingAction === 'email' ? <Loader2 className="animate-spin" size={16} /> : <Mail size={16} />} onClick={() => void handleSend('email')} variant="secondary">
               Kirim Detail Acara via Email
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <h2 className="text-base font-semibold">Hasil Editing</h2>
+          <p className="mt-1 text-sm text-neutral-500">Vendor dapat memantau link Drive dari editor dan mengirimkannya ke klien.</p>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {deliverables.length === 0 ? (
+            <p className="rounded-md bg-app-muted p-3 text-sm text-neutral-500">Belum ada link hasil pekerjaan dari editor.</p>
+          ) : (
+            <div className="grid gap-3">
+              {deliverables.map((deliverable) => {
+                const links = getFilledDeliverableLinks(deliverable)
+                return (
+                  <div className="rounded-md border border-app-border p-4" key={deliverable.id}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-semibold">{deliverable.editorName || 'Editor'}</p>
+                        <p className="mt-1 text-xs text-neutral-500">{deliverable.editorRoles.map((role) => freelanceTypeLabels[role]).join(', ') || 'Editor'}</p>
+                      </div>
+                      <span className="w-fit rounded-full bg-app-gold-soft px-3 py-1 text-xs font-semibold text-app-text">
+                        {editJobStatusLabels[deliverable.status]}
+                      </span>
+                    </div>
+                    {links.length > 0 ? (
+                      <div className="mt-3 grid gap-2">
+                        {links.map(([label, url]) => (
+                          <a className="break-all text-sm font-semibold text-app-gold hover:underline" href={url} key={`${deliverable.id}-${label}`} rel="noreferrer" target="_blank">
+                            {label}: {url}
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-neutral-500">Link belum diisi.</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <label className="grid gap-2 text-sm font-medium text-app-text">
+            Pesan ke Klien
+            <textarea
+              className="min-h-40 rounded-md border border-app-border bg-white px-3 py-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:text-sm"
+              value={clientDeliveryMessage}
+              onChange={(event) => setClientDeliveryMessage(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button icon={<MessageCircle size={16} />} onClick={() => handleSendClientDelivery('whatsapp')} variant="secondary">
+              Kirim Link ke Klien via WhatsApp
+            </Button>
+            <Button icon={<Mail size={16} />} onClick={() => handleSendClientDelivery('email')} variant="secondary">
+              Kirim Link ke Klien via Email
             </Button>
           </div>
         </CardContent>

@@ -1,7 +1,12 @@
 import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { firestoreCollections } from '../../constants/firestore'
 import { firestore } from '../../lib/firebase/client'
-import type { UserProfile } from '../../types/domain'
+import type { FreelanceRole, UserProfile } from '../../types/domain'
+
+function normalizeRole(value: unknown): UserProfile['role'] {
+  if (value === 'super_admin' || value === 'freelance') return value
+  return 'user'
+}
 
 function buildUserProfile(id: string, data: Record<string, unknown>): UserProfile {
   return {
@@ -9,7 +14,10 @@ function buildUserProfile(id: string, data: Record<string, unknown>): UserProfil
     uid: String(data.uid ?? id),
     name: String(data.name ?? ''),
     email: String(data.email ?? ''),
-    role: data.role === 'super_admin' ? 'super_admin' : 'user',
+    role: normalizeRole(data.role),
+    vendorId: typeof data.vendorId === 'string' ? data.vendorId : null,
+    freelancerId: typeof data.freelancerId === 'string' ? data.freelancerId : null,
+    freelanceRoles: Array.isArray(data.freelanceRoles) ? (data.freelanceRoles as FreelanceRole[]) : [],
     isActive: Boolean(data.isActive),
     isSuspended: Boolean(data.isSuspended),
     activatedAt: (data.activatedAt as UserProfile['activatedAt']) ?? null,

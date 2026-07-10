@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore'
 
-export type UserRole = 'super_admin' | 'user'
+export type UserRole = 'super_admin' | 'user' | 'freelance'
 export type TokenDurationType =
   | 'ONE_HOUR'
   | 'ONE_DAY'
@@ -14,7 +14,9 @@ export type PaymentMethod = 'TRANSFER_BANK' | 'CASH' | 'QRIS' | 'OTHER'
 export type DiscountType = 'NOMINAL' | 'PERCENTAGE'
 export type EventType = 'WEDDING' | 'PREWEDDING' | 'LAMARAN' | 'CORPORATE'
 export type EventDataStatus = 'NOT_FILLED' | 'PARTIAL' | 'COMPLETE'
-export type FreelanceType = 'FOTOGRAFER' | 'VIDEOGRAFER' | 'ASISTEN'
+export type FreelanceRole = 'FOTOGRAFER' | 'VIDEOGRAFER' | 'EDITOR_FOTO' | 'EDITOR_VIDEO' | 'ASISTEN'
+export type FreelanceType = FreelanceRole
+export type EditJobStatus = 'WAITING_UPLOAD' | 'IN_PROGRESS' | 'DONE'
 
 export type EventLocationDetail = {
   venueName: string
@@ -45,8 +47,12 @@ export type FreelanceRecord = {
   userId: string
   fullName: string
   freelanceType: FreelanceType
+  roles: FreelanceRole[]
   whatsappNumber: string
   email: string
+  authUid: string | null
+  inviteToken: string | null
+  inviteStatus: 'NOT_SENT' | 'PENDING' | 'ACCEPTED'
   address: string | null
   notes: string | null
   isActive: boolean
@@ -69,7 +75,52 @@ export type TeamAssignmentRecord = {
   invoiceId: string
   photographers: TeamAssignmentMember[]
   videographers: TeamAssignmentMember[]
+  photoEditors: TeamAssignmentMember[]
+  videoEditors: TeamAssignmentMember[]
   assistants: TeamAssignmentMember[]
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type FreelanceInviteRecord = {
+  id: string
+  userId: string
+  freelancerId: string
+  email: string
+  fullName: string
+  roles: FreelanceRole[]
+  token: string
+  status: 'PENDING' | 'ACCEPTED' | 'EXPIRED'
+  acceptedByUid: string | null
+  acceptedAt: FirestoreDate
+  expiresAt: FirestoreDate
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+}
+
+export type JobDeliverableLinks = {
+  photoRawUrl: string
+  photoEditedUrl: string
+  albumUrl: string
+  videoFootageUrl: string
+  videoHighlightUrl: string
+  videoFullUrl: string
+  revisionUrl: string
+}
+
+export type JobDeliverableRecord = {
+  id: string
+  userId: string
+  invoiceId: string
+  freelancerId: string
+  editorUid: string | null
+  editorName: string
+  editorRoles: FreelanceRole[]
+  status: EditJobStatus
+  links: JobDeliverableLinks
+  notes: string | null
+  uploadedAt: FirestoreDate
   createdAt: FirestoreDate
   updatedAt: FirestoreDate
   deletedAt: FirestoreDate
@@ -89,6 +140,9 @@ export type UserProfile = {
   name: string
   email: string
   role: UserRole
+  vendorId: string | null
+  freelancerId: string | null
+  freelanceRoles: FreelanceRole[]
   isActive: boolean
   isSuspended: boolean
   activatedAt: FirestoreDate

@@ -45,7 +45,7 @@ export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps) 
   }
 
   if (!allowedRoles.includes(profile.role)) {
-    return <Navigate to={profile.role === 'super_admin' ? '/admin' : '/dashboard'} replace />
+    return <Navigate to={profile.role === 'super_admin' ? '/admin' : profile.role === 'freelance' ? '/freelance' : '/dashboard'} replace />
   }
 
   return children

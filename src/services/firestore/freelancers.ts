@@ -1,11 +1,12 @@
-import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore'
 import { firestoreCollections } from '../../constants/firestore'
 import { firestore } from '../../lib/firebase/client'
-import type { FreelanceRecord, FreelanceType } from '../../types/domain'
+import type { FreelanceInviteRecord, FreelanceRecord, FreelanceRole, FreelanceType } from '../../types/domain'
 
 export type FreelancerInput = {
   fullName: string
   freelanceType: FreelanceType
+  roles: FreelanceRole[]
   whatsappNumber: string
   email: string
   address: string
@@ -16,7 +17,18 @@ export type FreelancerInput = {
 export const freelanceTypeLabels: Record<FreelanceType, string> = {
   FOTOGRAFER: 'Fotografer',
   VIDEOGRAFER: 'Videografer',
+  EDITOR_FOTO: 'Editor Foto',
+  EDITOR_VIDEO: 'Editor Video',
   ASISTEN: 'Asisten',
+}
+
+function makeInviteToken() {
+  return `fl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+function normalizeRoles(input: FreelancerInput | Partial<FreelanceRecord>) {
+  const roles = Array.isArray(input.roles) && input.roles.length > 0 ? input.roles : input.freelanceType ? [input.freelanceType] : ['FOTOGRAFER' as FreelanceRole]
+  return Array.from(new Set(roles))
 }
 
 function buildFreelancer(id: string, data: Record<string, unknown>): FreelanceRecord {
@@ -25,8 +37,15 @@ function buildFreelancer(id: string, data: Record<string, unknown>): FreelanceRe
     userId: String(data.userId ?? ''),
     fullName: String(data.fullName ?? ''),
     freelanceType: (data.freelanceType as FreelanceType) ?? 'FOTOGRAFER',
+    roles: normalizeRoles(data as Partial<FreelanceRecord>),
     whatsappNumber: String(data.whatsappNumber ?? ''),
     email: String(data.email ?? ''),
+    authUid: typeof data.authUid === 'string' ? data.authUid : null,
+    inviteToken: typeof data.inviteToken === 'string' ? data.inviteToken : null,
+    inviteStatus:
+      data.inviteStatus === 'PENDING' || data.inviteStatus === 'ACCEPTED' || data.inviteStatus === 'NOT_SENT'
+        ? data.inviteStatus
+        : 'NOT_SENT',
     address: typeof data.address === 'string' ? data.address : null,
     notes: typeof data.notes === 'string' ? data.notes : null,
     isActive: data.isActive !== false,
@@ -42,7 +61,8 @@ function normalizeInput(input: FreelancerInput) {
 
   return {
     fullName: input.fullName.trim(),
-    freelanceType: input.freelanceType,
+    roles: normalizeRoles(input),
+    freelanceType: normalizeRoles(input)[0],
     whatsappNumber: input.whatsappNumber.trim(),
     email: input.email.trim(),
     address: input.address.trim() || null,
@@ -72,13 +92,26 @@ export async function getFreelancer(userId: string, freelancerId: string) {
 
 export async function createFreelancer(userId: string, input: FreelancerInput) {
   const normalized = normalizeInput(input)
-  await addDoc(collection(firestore, firestoreCollections.freelancers), {
+  const inviteToken = input.email.trim() ? makeInviteToken() : null
+  const freelancerRef = await addDoc(collection(firestore, firestoreCollections.freelancers), {
     userId,
     ...normalized,
+    authUid: null,
+    inviteToken,
+    inviteStatus: inviteToken ? 'PENDING' : 'NOT_SENT',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     deletedAt: null,
   })
+
+  if (inviteToken) {
+    await createFreelanceInvite(userId, freelancerRef.id, {
+      fullName: normalized.fullName,
+      email: normalized.email,
+      roles: normalized.roles,
+      token: inviteToken,
+    })
+  }
 }
 
 export async function updateFreelancer(userId: string, freelancerId: string, input: FreelancerInput) {
@@ -88,6 +121,76 @@ export async function updateFreelancer(userId: string, freelancerId: string, inp
   await updateDoc(doc(firestore, firestoreCollections.freelancers, freelancerId), {
     userId,
     ...normalizeInput(input),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+type InviteInput = {
+  fullName: string
+  email: string
+  roles: FreelanceRole[]
+  token: string
+}
+
+function buildInvite(id: string, data: Record<string, unknown>): FreelanceInviteRecord {
+  return {
+    id,
+    userId: String(data.userId ?? ''),
+    freelancerId: String(data.freelancerId ?? ''),
+    email: String(data.email ?? ''),
+    fullName: String(data.fullName ?? ''),
+    roles: Array.isArray(data.roles) ? (data.roles as FreelanceRole[]) : [],
+    token: String(data.token ?? ''),
+    status: (data.status as FreelanceInviteRecord['status']) ?? 'PENDING',
+    acceptedByUid: typeof data.acceptedByUid === 'string' ? data.acceptedByUid : null,
+    acceptedAt: (data.acceptedAt as FreelanceInviteRecord['acceptedAt']) ?? null,
+    expiresAt: (data.expiresAt as FreelanceInviteRecord['expiresAt']) ?? null,
+    createdAt: (data.createdAt as FreelanceInviteRecord['createdAt']) ?? null,
+    updatedAt: (data.updatedAt as FreelanceInviteRecord['updatedAt']) ?? null,
+  }
+}
+
+async function createFreelanceInvite(userId: string, freelancerId: string, input: InviteInput) {
+  await addDoc(collection(firestore, firestoreCollections.freelanceInvites), {
+    userId,
+    freelancerId,
+    fullName: input.fullName,
+    email: input.email,
+    roles: input.roles,
+    token: input.token,
+    status: 'PENDING',
+    acceptedByUid: null,
+    acceptedAt: null,
+    expiresAt: Timestamp.fromMillis(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function getFreelanceInviteByToken(token: string) {
+  const inviteQuery = query(
+    collection(firestore, firestoreCollections.freelanceInvites),
+    where('token', '==', token),
+    where('status', '==', 'PENDING'),
+  )
+  const snapshot = await getDocs(inviteQuery)
+  const firstDoc = snapshot.docs[0]
+  if (!firstDoc) return null
+
+  return buildInvite(firstDoc.id, firstDoc.data())
+}
+
+export async function markFreelanceInviteAccepted(invite: FreelanceInviteRecord, authUid: string) {
+  await updateDoc(doc(firestore, firestoreCollections.freelanceInvites, invite.id), {
+    status: 'ACCEPTED',
+    acceptedByUid: authUid,
+    acceptedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+
+  await updateDoc(doc(firestore, firestoreCollections.freelancers, invite.freelancerId), {
+    authUid,
+    inviteStatus: 'ACCEPTED',
     updatedAt: serverTimestamp(),
   })
 }

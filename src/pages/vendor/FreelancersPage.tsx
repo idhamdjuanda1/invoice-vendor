@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { PageHeader } from '../../components/ui/PageHeader'
+import { env } from '../../config/env'
 import { useAuth } from '../../features/auth/useAuth'
 import {
   createFreelancer,
@@ -19,6 +20,7 @@ import type { FreelanceRecord, FreelanceType } from '../../types/domain'
 const emptyInput: FreelancerInput = {
   fullName: '',
   freelanceType: 'FOTOGRAFER',
+  roles: ['FOTOGRAFER'],
   whatsappNumber: '',
   email: '',
   address: '',
@@ -30,6 +32,7 @@ function freelancerToInput(freelancer: FreelanceRecord): FreelancerInput {
   return {
     fullName: freelancer.fullName,
     freelanceType: freelancer.freelanceType,
+    roles: freelancer.roles,
     whatsappNumber: freelancer.whatsappNumber,
     email: freelancer.email,
     address: freelancer.address ?? '',
@@ -47,6 +50,25 @@ function getErrorMessage(error: unknown) {
   }
 
   return messages[message] ?? 'Data freelance belum bisa disimpan.'
+}
+
+function buildInviteUrl(token: string | null) {
+  return token ? `${env.appUrl.replace(/\/$/, '')}/freelance/activate/${token}` : ''
+}
+
+function buildInviteMailto(freelancer: FreelanceRecord) {
+  const inviteUrl = buildInviteUrl(freelancer.inviteToken)
+  const subject = 'Aktivasi Akun Freelance Invoice Vendor'
+  const body = [
+    `Halo ${freelancer.fullName},`,
+    '',
+    'Silakan aktifkan akun freelance Anda melalui link berikut:',
+    inviteUrl,
+    '',
+    'Setelah aktif, Anda dapat login untuk melihat jadwal pekerjaan dan mengunggah link hasil pekerjaan.',
+  ].join('\n')
+
+  return `mailto:${freelancer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
 export function FreelancersPage() {
@@ -85,6 +107,17 @@ export function FreelancersPage() {
   function resetForm() {
     setEditingId('')
     setInput(emptyInput)
+  }
+
+  function toggleRole(role: FreelanceType) {
+    setInput((current) => {
+      const roles = current.roles.includes(role)
+        ? current.roles.filter((item) => item !== role)
+        : [...current.roles, role]
+      const nextRoles = roles.length > 0 ? roles : [role]
+
+      return { ...current, roles: nextRoles, freelanceType: nextRoles[0] }
+    })
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -153,18 +186,22 @@ export function FreelancersPage() {
           <CardContent>
             <form className="grid gap-4" onSubmit={handleSubmit}>
               <Input label="Nama Lengkap" value={input.fullName} onChange={(event) => setInput((current) => ({ ...current, fullName: event.target.value }))} />
-              <label className="grid gap-2 text-sm font-medium text-app-text">
-                Jenis Freelance
-                <select
-                  className="min-h-12 rounded-md border border-app-border bg-white px-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:min-h-11 sm:text-sm"
-                  value={input.freelanceType}
-                  onChange={(event) => setInput((current) => ({ ...current, freelanceType: event.target.value as FreelanceType }))}
-                >
+              <div className="grid gap-2 text-sm font-medium text-app-text">
+                <span>Role</span>
+                <div className="grid gap-2 rounded-md border border-app-border p-3">
                   {Object.entries(freelanceTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
+                    <label className="flex items-center gap-3 text-sm" key={value}>
+                      <input
+                        checked={input.roles.includes(value as FreelanceType)}
+                        className="size-4"
+                        type="checkbox"
+                        onChange={() => toggleRole(value as FreelanceType)}
+                      />
+                      {label}
+                    </label>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
               <Input label="Nomor WhatsApp" value={input.whatsappNumber} onChange={(event) => setInput((current) => ({ ...current, whatsappNumber: event.target.value }))} />
               <Input label="Email" type="email" value={input.email} onChange={(event) => setInput((current) => ({ ...current, email: event.target.value }))} />
               <Input label="Alamat" value={input.address} onChange={(event) => setInput((current) => ({ ...current, address: event.target.value }))} />
@@ -213,14 +250,35 @@ export function FreelancersPage() {
                         <Link className="font-bold text-app-text hover:underline" to={`/freelancers/${freelancer.id}`}>
                           {freelancer.fullName}
                         </Link>
-                        <p className="mt-1 text-sm text-neutral-500">{freelanceTypeLabels[freelancer.freelanceType]}</p>
+                        <p className="mt-1 text-sm text-neutral-500">
+                          {freelancer.roles.map((role) => freelanceTypeLabels[role]).join(', ')}
+                        </p>
                         <p className="mt-2 text-sm">{freelancer.whatsappNumber}{freelancer.email ? ` - ${freelancer.email}` : ''}</p>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          Login: {freelancer.inviteStatus === 'ACCEPTED' ? 'Aktif' : freelancer.inviteStatus === 'PENDING' ? 'Undangan terkirim' : 'Belum diundang'}
+                        </p>
                       </div>
                       <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${freelancer.isActive ? 'bg-green-50 text-green-700' : 'bg-neutral-100 text-neutral-600'}`}>
                         {freelancer.isActive ? 'Aktif' : 'Nonaktif'}
                       </span>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
+                      {freelancer.email && freelancer.inviteToken && freelancer.inviteStatus !== 'ACCEPTED' ? (
+                        <>
+                          <a href={buildInviteMailto(freelancer)}>
+                            <Button type="button" variant="secondary">
+                              Kirim Email Aktivasi
+                            </Button>
+                          </a>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void navigator.clipboard?.writeText(buildInviteUrl(freelancer.inviteToken))}
+                          >
+                            Copy Link Aktivasi
+                          </Button>
+                        </>
+                      ) : null}
                       <Button
                         type="button"
                         variant="secondary"
