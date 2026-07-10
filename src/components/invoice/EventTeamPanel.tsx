@@ -9,7 +9,7 @@ import { eventFieldDefinitions, eventStatusLabels, eventStatusStyles, eventTypeL
 import { getInvoiceEventByInvoiceId, publishClientForm, upsertInvoiceEvent } from '../../services/firestore/invoiceEvents'
 import { freelanceTypeLabels, listFreelancers } from '../../services/firestore/freelancers'
 import { getAssignmentConflicts, getAssignmentMembers, getTeamAssignmentByInvoiceId, saveTeamAssignment } from '../../services/firestore/teamAssignments'
-import { sendTeamNotification } from '../../services/notifications/teamNotifications'
+import { buildTeamMailtoUrl, buildTeamMessage, buildTeamWhatsappUrls, logTeamNotification } from '../../services/notifications/teamNotifications'
 import type { FreelanceRecord, FreelanceType, InvoiceEventDetail, InvoiceRecord, TeamAssignmentRecord } from '../../types/domain'
 
 type EventTeamPanelProps = {
@@ -196,16 +196,32 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
     setErrorMessage('')
 
     try {
-      await sendTeamNotification(profile.uid, invoice, eventDetail, selectedMembers, channel)
-      setMessage(channel === 'whatsapp' ? 'Detail acara berhasil dikirim via WhatsApp.' : 'Detail acara berhasil dikirim via Email.')
+      if (selectedMembers.length === 0) throw new Error('TEAM_RECIPIENTS_REQUIRED')
+
+      const notificationMessage = buildTeamMessage(invoice, eventDetail)
+
+      if (channel === 'whatsapp') {
+        const whatsappUrls = buildTeamWhatsappUrls(invoice, eventDetail, selectedMembers)
+        if (whatsappUrls.length === 0) throw new Error('TEAM_WHATSAPP_REQUIRED')
+        whatsappUrls.forEach((entry) => window.open(entry.url, '_blank', 'noopener,noreferrer'))
+        await logTeamNotification(profile.uid, invoice.id, channel, whatsappUrls.map((entry) => entry.recipient), 'sent', notificationMessage).catch(() => undefined)
+        setMessage('WhatsApp tim sudah dibuka. Kirim pesan dari WhatsApp untuk masing-masing freelance.')
+      } else {
+        const mailtoUrl = buildTeamMailtoUrl(invoice, eventDetail, selectedMembers)
+        if (!mailtoUrl) throw new Error('TEAM_EMAIL_REQUIRED')
+        window.location.href = mailtoUrl
+        await logTeamNotification(profile.uid, invoice.id, channel, selectedMembers.filter((member) => member.email), 'sent', notificationMessage).catch(() => undefined)
+        setMessage('Email tim sudah dibuka di aplikasi email perangkat ini.')
+      }
     } catch (error) {
       console.error('Failed to send team notification', error)
       const code = error instanceof Error ? error.message : ''
-      setErrorMessage(
-        code === 'NOTIFICATION_API_NOT_CONFIGURED'
-          ? 'Endpoint WhatsApp/Email belum dikonfigurasi. Isi VITE_VENDOR_NOTIFICATION_API_URL yang terhubung ke backend/Worker.'
-          : 'Detail acara belum bisa dikirim ke tim.',
-      )
+      const messages: Record<string, string> = {
+        TEAM_RECIPIENTS_REQUIRED: 'Pilih dan simpan tim bertugas terlebih dahulu.',
+        TEAM_WHATSAPP_REQUIRED: 'Nomor WhatsApp freelance belum tersedia.',
+        TEAM_EMAIL_REQUIRED: 'Email freelance belum tersedia.',
+      }
+      setErrorMessage(messages[code] ?? 'Detail acara belum bisa dibuka untuk dikirim ke tim.')
     } finally {
       setLoadingAction('')
     }

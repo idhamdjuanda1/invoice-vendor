@@ -1,5 +1,4 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
-import { env } from '../../config/env'
 import { firestoreCollections } from '../../constants/firestore'
 import { eventFieldDefinitions, eventTypeLabels, getPrimaryEventLocation, getPrimaryEventTime } from '../../lib/events/eventDetails'
 import { formatDisplayDate } from '../../lib/formatters/date'
@@ -7,6 +6,13 @@ import { firestore } from '../../lib/firebase/client'
 import type { InvoiceEventDetail, InvoiceRecord, TeamAssignmentMember } from '../../types/domain'
 
 type SendChannel = 'whatsapp' | 'email'
+
+function normalizeWhatsapp(value: string | null) {
+  if (!value) return ''
+  const digits = value.replace(/\D/g, '')
+  if (!digits) return ''
+  return digits.startsWith('0') ? `62${digits.slice(1)}` : digits
+}
 
 export function buildTeamMessage(invoice: InvoiceRecord, event: InvoiceEventDetail | null) {
   const location = getPrimaryEventLocation(event, invoice.eventLocation || '-')
@@ -31,7 +37,7 @@ export function buildTeamMessage(invoice: InvoiceRecord, event: InvoiceEventDeta
   ].filter(Boolean).join('\n')
 }
 
-async function logNotification(userId: string, invoiceId: string, channel: SendChannel, recipients: TeamAssignmentMember[], status: 'sent' | 'failed', message: string) {
+export async function logTeamNotification(userId: string, invoiceId: string, channel: SendChannel, recipients: TeamAssignmentMember[], status: 'sent' | 'failed', message: string) {
   await addDoc(collection(firestore, firestoreCollections.notificationLogs), {
     userId,
     invoiceId,
@@ -48,35 +54,22 @@ async function logNotification(userId: string, invoiceId: string, channel: SendC
   })
 }
 
-async function sendViaApi(userId: string, invoiceId: string, channel: SendChannel, recipients: TeamAssignmentMember[], message: string) {
-  if (!env.vendorNotificationApiUrl) {
-    throw new Error('NOTIFICATION_API_NOT_CONFIGURED')
-  }
-
-  const response = await fetch(env.vendorNotificationApiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId,
-      invoiceId,
-      channel,
-      recipients,
-      message,
-    }),
-  })
-
-  if (!response.ok) throw new Error('NOTIFICATION_SEND_FAILED')
+export function buildTeamWhatsappUrls(invoice: InvoiceRecord, event: InvoiceEventDetail | null, recipients: TeamAssignmentMember[]) {
+  const message = buildTeamMessage(invoice, event)
+  return recipients
+    .map((recipient) => ({
+      recipient,
+      url: `https://wa.me/${normalizeWhatsapp(recipient.whatsappNumber)}?text=${encodeURIComponent(message)}`,
+    }))
+    .filter((entry) => normalizeWhatsapp(entry.recipient.whatsappNumber))
 }
 
-export async function sendTeamNotification(userId: string, invoice: InvoiceRecord, event: InvoiceEventDetail | null, recipients: TeamAssignmentMember[], channel: SendChannel) {
-  if (recipients.length === 0) throw new Error('TEAM_RECIPIENTS_REQUIRED')
+export function buildTeamMailtoUrl(invoice: InvoiceRecord, event: InvoiceEventDetail | null, recipients: TeamAssignmentMember[]) {
   const message = buildTeamMessage(invoice, event)
+  const emails = recipients.map((recipient) => recipient.email.trim()).filter(Boolean)
+  const subject = `Detail Acara ${eventTypeLabels[invoice.eventType]} - ${invoice.clientName || invoice.invoiceNumber}`
 
-  try {
-    await sendViaApi(userId, invoice.id, channel, recipients, message)
-    await logNotification(userId, invoice.id, channel, recipients, 'sent', message)
-  } catch (error) {
-    await logNotification(userId, invoice.id, channel, recipients, 'failed', message).catch(() => undefined)
-    throw error
-  }
+  return emails.length > 0
+    ? `mailto:${emails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
+    : ''
 }
