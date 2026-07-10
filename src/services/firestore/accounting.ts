@@ -440,6 +440,29 @@ export async function createAccountingPayable(userId: string, input: AccountingP
   })
 }
 
+export async function updateAccountingPayable(userId: string, payableId: string, input: AccountingPayableInput) {
+  const snapshot = await getDoc(doc(firestore, firestoreCollections.accountingPayables, payableId))
+  if (!snapshot.exists()) throw new Error('ACCOUNTING_PAYABLE_NOT_FOUND')
+
+  const payable = buildPayable(snapshot.id, snapshot.data())
+  if (payable.userId !== userId || payable.deletedAt) throw new Error('ACCOUNTING_PAYABLE_NOT_FOUND')
+  if (payable.paidAmount > 0) throw new Error('ACCOUNTING_PAYABLE_HAS_PAYMENT')
+  if (!input.vendorName.trim()) throw new Error('ACCOUNTING_PAYABLE_VENDOR_REQUIRED')
+  if (!input.description.trim()) throw new Error('ACCOUNTING_DESCRIPTION_REQUIRED')
+  if (!input.amount || input.amount <= 0) throw new Error('ACCOUNTING_AMOUNT_INVALID')
+
+  await updateDoc(doc(firestore, firestoreCollections.accountingPayables, payableId), {
+    userId,
+    vendorName: input.vendorName.trim(),
+    description: input.description.trim(),
+    dueDate: dateStringToTimestamp(input.dueDate),
+    amount: input.amount,
+    paidAmount: 0,
+    status: 'UNPAID',
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function markAccountingPayablePaid(userId: string, payableId: string, accountType: AccountingAccountType, createdById: string) {
   const snapshot = await getDoc(doc(firestore, firestoreCollections.accountingPayables, payableId))
   if (!snapshot.exists()) throw new Error('ACCOUNTING_PAYABLE_NOT_FOUND')

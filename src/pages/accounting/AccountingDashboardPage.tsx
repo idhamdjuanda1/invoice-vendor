@@ -29,6 +29,7 @@ import {
   softDeleteAccountingTransaction,
   updateAccountingAsset,
   updateAccountingCategory,
+  updateAccountingPayable,
   updateAccountingTransaction,
 } from '../../services/firestore/accounting'
 import { listInvoices } from '../../services/firestore/invoices'
@@ -123,6 +124,16 @@ type AccountBreakdown = {
 
 function getAccountName(accountType: AccountingAccountType) {
   return accountType === 'CASH' ? 'Kas' : 'Bank'
+}
+
+function parseMoneyInput(value: string) {
+  return Number(value.replace(/\D/g, ''))
+}
+
+function formatMoneyInput(value: string | number) {
+  const digits = String(value).replace(/\D/g, '')
+  if (!digits) return ''
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 }
 
 function isCurrentAccountingMonth(value: string) {
@@ -318,6 +329,7 @@ export function AccountingDashboardPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [editingTransactionId, setEditingTransactionId] = useState('')
   const [editingAssetId, setEditingAssetId] = useState('')
+  const [editingPayableId, setEditingPayableId] = useState('')
   const [isDeletingTransaction, setIsDeletingTransaction] = useState('')
   const [isUpdatingPayable, setIsUpdatingPayable] = useState('')
   const [message, setMessage] = useState('')
@@ -544,7 +556,7 @@ export function AccountingDashboardPage() {
         accountType: transactionInput.accountType,
         categoryId: category?.id ?? '',
         categoryName: category?.name ?? transactionInput.type,
-        amount: Number(transactionInput.amount),
+        amount: parseMoneyInput(transactionInput.amount),
         description: transactionInput.description,
       }
       if (editingTransactionId) {
@@ -574,7 +586,7 @@ export function AccountingDashboardPage() {
       await createOpeningBalanceTransaction(ownerUserId, profile.uid, {
         date: balanceInput.date,
         accountType: balanceInput.accountType,
-        amount: Number(balanceInput.amount),
+        amount: parseMoneyInput(balanceInput.amount),
         description: balanceInput.description,
       })
       setBalanceInput((current) => ({ ...current, amount: '', description: 'Saldo awal' }))
@@ -598,7 +610,7 @@ export function AccountingDashboardPage() {
       const payload = {
         name: assetInput.name,
         purchaseDate: assetInput.purchaseDate,
-        purchasePrice: Number(assetInput.purchasePrice),
+        purchasePrice: parseMoneyInput(assetInput.purchasePrice),
         paymentAccountType: assetInput.paymentAccountType,
         condition: assetInput.condition,
         depreciationMonths: Number(assetInput.depreciationMonths),
@@ -627,7 +639,7 @@ export function AccountingDashboardPage() {
     setAssetInput({
       name: asset.name,
       purchaseDate: toInputDate(asset.purchaseDate) || today,
-      purchasePrice: String(asset.purchasePrice),
+      purchasePrice: formatMoneyInput(asset.purchasePrice),
       paymentAccountType: asset.paymentAccountType,
       condition: asset.condition,
       depreciationMonths: String(asset.depreciationMonths),
@@ -659,21 +671,44 @@ export function AccountingDashboardPage() {
     setMessage('')
     setErrorMessage('')
     try {
-      await createAccountingPayable(ownerUserId, {
+      const payload = {
         vendorName: payableInput.vendorName,
         description: payableInput.description,
         dueDate: payableInput.dueDate,
-        amount: Number(payableInput.amount),
-      })
+        amount: parseMoneyInput(payableInput.amount),
+      }
+      if (editingPayableId) {
+        await updateAccountingPayable(ownerUserId, editingPayableId, payload)
+      } else {
+        await createAccountingPayable(ownerUserId, payload)
+      }
       setPayableInput({ vendorName: '', description: '', dueDate: today, amount: '' })
+      setEditingPayableId('')
       await loadAccounting()
-      setMessage('Hutang berhasil dicatat.')
+      setMessage(editingPayableId ? 'Hutang berhasil diperbarui.' : 'Hutang berhasil dicatat.')
     } catch (error) {
       console.error('Failed to create accounting payable', error)
-      setErrorMessage('Hutang belum bisa disimpan.')
+      setErrorMessage('Hutang belum bisa disimpan atau diperbarui. Hutang yang sudah dibayar tidak bisa diedit.')
     } finally {
       setIsSaving(false)
     }
+  }
+
+  function handleEditPayable(payable: AccountingPayableRecord) {
+    setEditingPayableId(payable.id)
+    setPayableInput({
+      vendorName: payable.vendorName,
+      description: payable.description,
+      dueDate: toInputDate(payable.dueDate) || today,
+      amount: formatMoneyInput(payable.amount),
+    })
+    setMessage('Mode edit hutang aktif. Ubah data lalu klik Simpan Perubahan.')
+    setErrorMessage('')
+  }
+
+  function cancelEditPayable() {
+    setEditingPayableId('')
+    setPayableInput({ vendorName: '', description: '', dueDate: today, amount: '' })
   }
 
   async function handlePayPayable(payable: AccountingPayableRecord, accountType: AccountingAccountType) {
@@ -740,7 +775,7 @@ export function AccountingDashboardPage() {
       date: toInputDate(transaction.date) || today,
       accountType: transaction.accountType,
       categoryId: transaction.categoryId ?? '',
-      amount: String(transaction.amount),
+      amount: formatMoneyInput(transaction.amount),
       description: transaction.description,
     })
     setActiveTab(transaction.type === 'EXPENSE' ? 'expense' : 'income')
@@ -836,23 +871,28 @@ export function AccountingDashboardPage() {
       {message ? <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div> : null}
       {errorMessage ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div> : null}
 
-      <div className="flex gap-2 overflow-x-auto rounded-md border border-app-border bg-white p-2">
-        {tabs.map((tab) => (
-          <button
-            className={`shrink-0 rounded-md px-3 py-2 text-sm font-semibold ${activeTab === tab.id ? 'bg-app-gold-soft text-app-text' : 'text-neutral-500 hover:bg-app-muted'}`}
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start">
+        <aside className="rounded-md border border-app-border bg-white p-2 lg:sticky lg:top-4">
+          <p className="hidden px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-neutral-500 lg:block">Menu Accounting</p>
+          <div className="flex gap-2 overflow-x-auto lg:grid lg:gap-1 lg:overflow-visible">
+            {tabs.map((tab) => (
+              <button
+                className={`shrink-0 rounded-md px-3 py-2 text-left text-sm font-semibold ${activeTab === tab.id ? 'bg-app-gold-soft text-app-text' : 'text-neutral-500 hover:bg-app-muted'}`}
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </aside>
 
-      {isLoading ? (
-        <Card><CardContent className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 className="animate-spin" size={16} /> Memuat accounting...</CardContent></Card>
-      ) : (
-        <>
+        <div className="min-w-0">
+          {isLoading ? (
+            <Card><CardContent className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 className="animate-spin" size={16} /> Memuat accounting...</CardContent></Card>
+          ) : (
+            <>
           {activeTab === 'dashboard' ? (
             <div className="grid gap-5">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -908,7 +948,7 @@ export function AccountingDashboardPage() {
                           <option value="BANK">Bank</option>
                         </select>
                       </label>
-                      <Input label="Nominal" min="0" type="number" value={balanceInput.amount} onChange={(event) => setBalanceInput((current) => ({ ...current, amount: event.target.value }))} />
+                      <Input inputMode="numeric" label="Nominal" value={balanceInput.amount} onChange={(event) => setBalanceInput((current) => ({ ...current, amount: formatMoneyInput(event.target.value) }))} />
                       <Input label="Keterangan" value={balanceInput.description} onChange={(event) => setBalanceInput((current) => ({ ...current, description: event.target.value }))} />
                       <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>Tambah Saldo</Button>
                     </form>
@@ -967,7 +1007,7 @@ export function AccountingDashboardPage() {
                           {selectedCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                         </select>
                       </label>
-                      <Input label="Nominal" min="0" type="number" value={transactionInput.amount} onChange={(event) => setTransactionInput((current) => ({ ...current, amount: event.target.value }))} />
+                      <Input inputMode="numeric" label="Nominal" value={transactionInput.amount} onChange={(event) => setTransactionInput((current) => ({ ...current, amount: formatMoneyInput(event.target.value) }))} />
                       <Input label="Keterangan" value={transactionInput.description} onChange={(event) => setTransactionInput((current) => ({ ...current, description: event.target.value }))} />
                       <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>
                         {editingTransactionId ? 'Simpan Perubahan' : 'Tambah Transaksi'}
@@ -1074,7 +1114,7 @@ export function AccountingDashboardPage() {
                   <form className="grid gap-4" onSubmit={handleCreateAsset}>
                     <Input label="Nama Aset" value={assetInput.name} onChange={(event) => setAssetInput((current) => ({ ...current, name: event.target.value }))} />
                     <Input label="Tanggal Pembelian" type="date" value={assetInput.purchaseDate} onChange={(event) => setAssetInput((current) => ({ ...current, purchaseDate: event.target.value }))} />
-                    <Input label="Harga" min="0" type="number" value={assetInput.purchasePrice} onChange={(event) => setAssetInput((current) => ({ ...current, purchasePrice: event.target.value }))} />
+                    <Input inputMode="numeric" label="Harga" value={assetInput.purchasePrice} onChange={(event) => setAssetInput((current) => ({ ...current, purchasePrice: formatMoneyInput(event.target.value) }))} />
                     <label className="grid gap-2 text-sm font-medium">
                       Dibayar Dari
                       <select className="min-h-12 rounded-md border border-app-border px-3" value={assetInput.paymentAccountType} onChange={(event) => setAssetInput((current) => ({ ...current, paymentAccountType: event.target.value as AccountingAccountType }))}>
@@ -1083,7 +1123,7 @@ export function AccountingDashboardPage() {
                       </select>
                     </label>
                     <Input
-                      hint={assetInput.purchasePrice ? `Estimasi beban per bulan: ${formatCurrency(Math.round(Number(assetInput.purchasePrice || 0) / Math.max(Number(assetInput.depreciationMonths || 1), 1)))}` : 'Contoh: 12 bulan, 24 bulan, atau 36 bulan.'}
+                      hint={assetInput.purchasePrice ? `Estimasi beban per bulan: ${formatCurrency(Math.round(parseMoneyInput(assetInput.purchasePrice) / Math.max(Number(assetInput.depreciationMonths || 1), 1)))}` : 'Contoh: 12 bulan, 24 bulan, atau 36 bulan.'}
                       label="Masa Manfaat / Penyusutan (bulan)"
                       min="1"
                       type="number"
@@ -1139,14 +1179,25 @@ export function AccountingDashboardPage() {
           {activeTab === 'payable' ? (
             <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
               <Card>
-                <CardHeader><h2 className="text-base font-semibold">Tambah Hutang</h2></CardHeader>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="text-base font-semibold">{editingPayableId ? 'Edit Hutang' : 'Tambah Hutang'}</h2>
+                    {editingPayableId ? (
+                      <Button className="min-h-9 px-3 py-1.5" icon={<X size={15} />} onClick={cancelEditPayable} type="button" variant="secondary">
+                        Batal
+                      </Button>
+                    ) : null}
+                  </div>
+                </CardHeader>
                 <CardContent>
                   <form className="grid gap-4" onSubmit={handleCreatePayable}>
                     <Input label="Nama Vendor / Pihak" value={payableInput.vendorName} onChange={(event) => setPayableInput((current) => ({ ...current, vendorName: event.target.value }))} />
                     <Input label="Keterangan Hutang" value={payableInput.description} onChange={(event) => setPayableInput((current) => ({ ...current, description: event.target.value }))} />
                     <Input label="Jatuh Tempo" type="date" value={payableInput.dueDate} onChange={(event) => setPayableInput((current) => ({ ...current, dueDate: event.target.value }))} />
-                    <Input label="Nominal" min="0" type="number" value={payableInput.amount} onChange={(event) => setPayableInput((current) => ({ ...current, amount: event.target.value }))} />
-                    <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>Simpan Hutang</Button>
+                    <Input inputMode="numeric" label="Nominal" value={payableInput.amount} onChange={(event) => setPayableInput((current) => ({ ...current, amount: formatMoneyInput(event.target.value) }))} />
+                    <Button disabled={isSaving} icon={isSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}>
+                      {editingPayableId ? 'Simpan Perubahan' : 'Simpan Hutang'}
+                    </Button>
                   </form>
                 </CardContent>
               </Card>
@@ -1172,6 +1223,11 @@ export function AccountingDashboardPage() {
                             <p className="font-bold">{formatCurrency(remaining)}</p>
                             {payable.status !== 'PAID' ? (
                               <div className="flex flex-wrap gap-2">
+                                {payable.paidAmount === 0 ? (
+                                  <Button className="min-h-9 px-3 py-1.5" icon={<Edit3 size={15} />} onClick={() => handleEditPayable(payable)} type="button" variant="secondary">
+                                    Edit
+                                  </Button>
+                                ) : null}
                                 <Button className="min-h-9 px-3 py-1.5" disabled={Boolean(isUpdatingPayable)} onClick={() => void handlePayPayable(payable, 'BANK')} type="button" variant="secondary">
                                   Bayar Bank
                                 </Button>
@@ -1387,8 +1443,10 @@ export function AccountingDashboardPage() {
               </CardContent>
             </Card>
           ) : null}
-        </>
-      )}
+            </>
+          )}
+        </div>
+      </div>
 
       <Card>
         <CardHeader><h2 className="text-base font-semibold">Kategori Transaksi</h2></CardHeader>
