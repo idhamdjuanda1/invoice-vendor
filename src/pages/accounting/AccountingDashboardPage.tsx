@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, BarChart3, Download, Edit3, Loader2, Plus, Trash2, X } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -64,6 +63,11 @@ type AccountingTab =
   | 'equity'
   | 'tax'
   | 'reports'
+
+const CashFlowChart = lazy(async () => {
+  const module = await import('../../components/accounting/CashFlowChart')
+  return { default: module.CashFlowChart }
+})
 
 const tabs: Array<{ id: AccountingTab; label: string }> = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -902,16 +906,9 @@ export function AccountingDashboardPage() {
               <Card>
                 <CardHeader><h2 className="flex items-center gap-2 text-base font-semibold"><BarChart3 size={18} /> Grafik Cash Flow</h2></CardHeader>
                 <CardContent className="h-72">
-                  <ResponsiveContainer height="100%" width="100%">
-                    <BarChart data={cashFlowData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                      <Bar dataKey="income" fill="#16a34a" name="Pemasukan" />
-                      <Bar dataKey="expense" fill="#dc2626" name="Pengeluaran" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-neutral-500">Memuat grafik...</div>}>
+                    <CashFlowChart data={cashFlowData} />
+                  </Suspense>
                 </CardContent>
               </Card>
             </div>
