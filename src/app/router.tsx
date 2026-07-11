@@ -1,44 +1,61 @@
+import { lazy, Suspense, type ComponentType, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AuthLayout } from '../components/layout/AuthLayout'
 import { DashboardLayout } from '../components/layout/DashboardLayout'
 import { PublicLayout } from '../components/layout/PublicLayout'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
-import { AccountingDashboardPage } from '../pages/accounting/AccountingDashboardPage'
-import { AdminBackupPage } from '../pages/admin/AdminBackupPage'
-import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage'
-import { AdminTokenPage } from '../pages/admin/AdminTokenPage'
-import { AdminUserDetailPage } from '../pages/admin/AdminUserDetailPage'
-import { AdminUsersPage } from '../pages/admin/AdminUsersPage'
-import { LoginPage } from '../pages/auth/LoginPage'
-import { RegisterPage } from '../pages/auth/RegisterPage'
-import { FreelanceJobDetailPage } from '../pages/freelance/FreelanceJobDetailPage'
-import { FreelanceJobsPage } from '../pages/freelance/FreelanceJobsPage'
-import { FreelanceProfilePage } from '../pages/freelance/FreelanceProfilePage'
-import { NotFoundPage } from '../pages/NotFoundPage'
-import { FreelanceActivatePage } from '../pages/public/FreelanceActivatePage'
-import { PublicInvoicePage } from '../pages/public/PublicInvoicePage'
-import { PublicClientFormPage } from '../pages/public/PublicClientFormPage'
-import { PublicPricelistPage } from '../pages/public/PublicPricelistPage'
-import { AgreementDetailPage } from '../pages/vendor/AgreementDetailPage'
-import { AgreementsPage } from '../pages/vendor/AgreementsPage'
-import { DashboardPage } from '../pages/vendor/DashboardPage'
-import { EditorDashboardPage } from '../pages/vendor/EditorDashboardPage'
-import { ExportPage } from '../pages/vendor/ExportPage'
-import { InvoiceCreatePage } from '../pages/vendor/InvoiceCreatePage'
-import { InvoiceDetailPage } from '../pages/vendor/InvoiceDetailPage'
-import { InvoiceEditPage } from '../pages/vendor/InvoiceEditPage'
-import { InvoicesPage } from '../pages/vendor/InvoicesPage'
-import { FreelancerDetailPage } from '../pages/vendor/FreelancerDetailPage'
-import { FreelancersPage } from '../pages/vendor/FreelancersPage'
-import { PackagesPage } from '../pages/vendor/PackagesPage'
-import { PartnerReportsPage } from '../pages/vendor/PartnerReportsPage'
-import { PartnersPage } from '../pages/vendor/PartnersPage'
-import { PaymentsPage } from '../pages/vendor/PaymentsPage'
-import { PricelistCreatePage } from '../pages/vendor/PricelistCreatePage'
-import { PricelistsPage } from '../pages/vendor/PricelistsPage'
-import { ProfilePage } from '../pages/vendor/ProfilePage'
-import { ReceiptDetailPage } from '../pages/vendor/ReceiptDetailPage'
-import { ReceiptsPage } from '../pages/vendor/ReceiptsPage'
+
+function lazyNamed<T extends ComponentType<object>>(loader: () => Promise<Record<string, T>>, exportName: string) {
+  return lazy(async () => {
+    const module = await loader()
+    return { default: module[exportName] }
+  })
+}
+
+function withPageFallback(page: ReactNode) {
+  return (
+    <Suspense fallback={<div className="rounded-md border border-app-border bg-white p-5 text-sm text-neutral-500">Memuat halaman...</div>}>
+      {page}
+    </Suspense>
+  )
+}
+
+const AccountingDashboardPage = lazyNamed(() => import('../pages/accounting/AccountingDashboardPage'), 'AccountingDashboardPage')
+const AdminBackupPage = lazyNamed(() => import('../pages/admin/AdminBackupPage'), 'AdminBackupPage')
+const AdminDashboardPage = lazyNamed(() => import('../pages/admin/AdminDashboardPage'), 'AdminDashboardPage')
+const AdminTokenPage = lazyNamed(() => import('../pages/admin/AdminTokenPage'), 'AdminTokenPage')
+const AdminUserDetailPage = lazyNamed(() => import('../pages/admin/AdminUserDetailPage'), 'AdminUserDetailPage')
+const AdminUsersPage = lazyNamed(() => import('../pages/admin/AdminUsersPage'), 'AdminUsersPage')
+const LoginPage = lazyNamed(() => import('../pages/auth/LoginPage'), 'LoginPage')
+const RegisterPage = lazyNamed(() => import('../pages/auth/RegisterPage'), 'RegisterPage')
+const FreelanceJobDetailPage = lazyNamed(() => import('../pages/freelance/FreelanceJobDetailPage'), 'FreelanceJobDetailPage')
+const FreelanceJobsPage = lazyNamed(() => import('../pages/freelance/FreelanceJobsPage'), 'FreelanceJobsPage')
+const FreelanceProfilePage = lazyNamed(() => import('../pages/freelance/FreelanceProfilePage'), 'FreelanceProfilePage')
+const NotFoundPage = lazyNamed(() => import('../pages/NotFoundPage'), 'NotFoundPage')
+const FreelanceActivatePage = lazyNamed(() => import('../pages/public/FreelanceActivatePage'), 'FreelanceActivatePage')
+const PublicClientFormPage = lazyNamed(() => import('../pages/public/PublicClientFormPage'), 'PublicClientFormPage')
+const PublicInvoicePage = lazyNamed(() => import('../pages/public/PublicInvoicePage'), 'PublicInvoicePage')
+const PublicPricelistPage = lazyNamed(() => import('../pages/public/PublicPricelistPage'), 'PublicPricelistPage')
+const AgreementDetailPage = lazyNamed(() => import('../pages/vendor/AgreementDetailPage'), 'AgreementDetailPage')
+const AgreementsPage = lazyNamed(() => import('../pages/vendor/AgreementsPage'), 'AgreementsPage')
+const DashboardPage = lazyNamed(() => import('../pages/vendor/DashboardPage'), 'DashboardPage')
+const EditorDashboardPage = lazyNamed(() => import('../pages/vendor/EditorDashboardPage'), 'EditorDashboardPage')
+const ExportPage = lazyNamed(() => import('../pages/vendor/ExportPage'), 'ExportPage')
+const FreelancerDetailPage = lazyNamed(() => import('../pages/vendor/FreelancerDetailPage'), 'FreelancerDetailPage')
+const FreelancersPage = lazyNamed(() => import('../pages/vendor/FreelancersPage'), 'FreelancersPage')
+const InvoiceCreatePage = lazyNamed(() => import('../pages/vendor/InvoiceCreatePage'), 'InvoiceCreatePage')
+const InvoiceDetailPage = lazyNamed(() => import('../pages/vendor/InvoiceDetailPage'), 'InvoiceDetailPage')
+const InvoiceEditPage = lazyNamed(() => import('../pages/vendor/InvoiceEditPage'), 'InvoiceEditPage')
+const InvoicesPage = lazyNamed(() => import('../pages/vendor/InvoicesPage'), 'InvoicesPage')
+const PackagesPage = lazyNamed(() => import('../pages/vendor/PackagesPage'), 'PackagesPage')
+const PartnerReportsPage = lazyNamed(() => import('../pages/vendor/PartnerReportsPage'), 'PartnerReportsPage')
+const PartnersPage = lazyNamed(() => import('../pages/vendor/PartnersPage'), 'PartnersPage')
+const PaymentsPage = lazyNamed(() => import('../pages/vendor/PaymentsPage'), 'PaymentsPage')
+const PricelistCreatePage = lazyNamed(() => import('../pages/vendor/PricelistCreatePage'), 'PricelistCreatePage')
+const PricelistsPage = lazyNamed(() => import('../pages/vendor/PricelistsPage'), 'PricelistsPage')
+const ProfilePage = lazyNamed(() => import('../pages/vendor/ProfilePage'), 'ProfilePage')
+const ReceiptDetailPage = lazyNamed(() => import('../pages/vendor/ReceiptDetailPage'), 'ReceiptDetailPage')
+const ReceiptsPage = lazyNamed(() => import('../pages/vendor/ReceiptsPage'), 'ReceiptsPage')
 
 export const router = createBrowserRouter([
   {
@@ -48,8 +65,8 @@ export const router = createBrowserRouter([
   {
     element: <AuthLayout />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
+      { path: '/login', element: withPageFallback(<LoginPage />) },
+      { path: '/register', element: withPageFallback(<RegisterPage />) },
     ],
   },
   {
@@ -59,27 +76,27 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { path: '/dashboard', element: <DashboardPage /> },
-      { path: '/profile', element: <ProfilePage /> },
-      { path: '/packages', element: <PackagesPage /> },
-      { path: '/partners', element: <PartnersPage /> },
-      { path: '/partner-reports', element: <PartnerReportsPage /> },
-      { path: '/freelancers', element: <FreelancersPage /> },
-      { path: '/freelancers/:freelancerId', element: <FreelancerDetailPage /> },
-      { path: '/editor', element: <EditorDashboardPage /> },
-      { path: '/invoices', element: <InvoicesPage /> },
-      { path: '/invoices/new', element: <InvoiceCreatePage /> },
-      { path: '/invoices/:invoiceId', element: <InvoiceDetailPage /> },
-      { path: '/invoices/:invoiceId/edit', element: <InvoiceEditPage /> },
-      { path: '/payments', element: <PaymentsPage /> },
-      { path: '/receipts', element: <ReceiptsPage /> },
-      { path: '/receipts/:receiptId', element: <ReceiptDetailPage /> },
-      { path: '/agreements', element: <AgreementsPage /> },
-      { path: '/agreements/:agreementId', element: <AgreementDetailPage /> },
-      { path: '/pricelists', element: <PricelistsPage /> },
-      { path: '/pricelists/new', element: <PricelistCreatePage /> },
-      { path: '/pricelists/:pricelistId/edit', element: <PricelistCreatePage /> },
-      { path: '/export', element: <ExportPage /> },
+      { path: '/dashboard', element: withPageFallback(<DashboardPage />) },
+      { path: '/profile', element: withPageFallback(<ProfilePage />) },
+      { path: '/packages', element: withPageFallback(<PackagesPage />) },
+      { path: '/partners', element: withPageFallback(<PartnersPage />) },
+      { path: '/partner-reports', element: withPageFallback(<PartnerReportsPage />) },
+      { path: '/freelancers', element: withPageFallback(<FreelancersPage />) },
+      { path: '/freelancers/:freelancerId', element: withPageFallback(<FreelancerDetailPage />) },
+      { path: '/editor', element: withPageFallback(<EditorDashboardPage />) },
+      { path: '/invoices', element: withPageFallback(<InvoicesPage />) },
+      { path: '/invoices/new', element: withPageFallback(<InvoiceCreatePage />) },
+      { path: '/invoices/:invoiceId', element: withPageFallback(<InvoiceDetailPage />) },
+      { path: '/invoices/:invoiceId/edit', element: withPageFallback(<InvoiceEditPage />) },
+      { path: '/payments', element: withPageFallback(<PaymentsPage />) },
+      { path: '/receipts', element: withPageFallback(<ReceiptsPage />) },
+      { path: '/receipts/:receiptId', element: withPageFallback(<ReceiptDetailPage />) },
+      { path: '/agreements', element: withPageFallback(<AgreementsPage />) },
+      { path: '/agreements/:agreementId', element: withPageFallback(<AgreementDetailPage />) },
+      { path: '/pricelists', element: withPageFallback(<PricelistsPage />) },
+      { path: '/pricelists/new', element: withPageFallback(<PricelistCreatePage />) },
+      { path: '/pricelists/:pricelistId/edit', element: withPageFallback(<PricelistCreatePage />) },
+      { path: '/export', element: withPageFallback(<ExportPage />) },
     ],
   },
   {
@@ -89,7 +106,7 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { path: '/accounting', element: <AccountingDashboardPage /> },
+      { path: '/accounting', element: withPageFallback(<AccountingDashboardPage />) },
     ],
   },
   {
@@ -99,11 +116,11 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { path: '/admin', element: <AdminDashboardPage /> },
-      { path: '/admin/tokens', element: <AdminTokenPage /> },
-      { path: '/admin/users', element: <AdminUsersPage /> },
-      { path: '/admin/users/:userId', element: <AdminUserDetailPage /> },
-      { path: '/admin/backup', element: <AdminBackupPage /> },
+      { path: '/admin', element: withPageFallback(<AdminDashboardPage />) },
+      { path: '/admin/tokens', element: withPageFallback(<AdminTokenPage />) },
+      { path: '/admin/users', element: withPageFallback(<AdminUsersPage />) },
+      { path: '/admin/users/:userId', element: withPageFallback(<AdminUserDetailPage />) },
+      { path: '/admin/backup', element: withPageFallback(<AdminBackupPage />) },
     ],
   },
   {
@@ -113,21 +130,21 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { path: '/freelance', element: <FreelanceJobsPage /> },
-      { path: '/freelance/schedule', element: <FreelanceJobsPage /> },
-      { path: '/freelance/jobs', element: <FreelanceJobsPage /> },
-      { path: '/freelance/jobs/:invoiceId', element: <FreelanceJobDetailPage /> },
-      { path: '/freelance/profile', element: <FreelanceProfilePage /> },
+      { path: '/freelance', element: withPageFallback(<FreelanceJobsPage />) },
+      { path: '/freelance/schedule', element: withPageFallback(<FreelanceJobsPage />) },
+      { path: '/freelance/jobs', element: withPageFallback(<FreelanceJobsPage />) },
+      { path: '/freelance/jobs/:invoiceId', element: withPageFallback(<FreelanceJobDetailPage />) },
+      { path: '/freelance/profile', element: withPageFallback(<FreelanceProfilePage />) },
     ],
   },
   {
     element: <PublicLayout />,
     children: [
-      { path: '/freelance/activate/:token', element: <FreelanceActivatePage /> },
-      { path: '/invoice/:slug', element: <PublicInvoicePage /> },
-      { path: '/form/:slug', element: <PublicClientFormPage /> },
-      { path: '/pricelist/:slug', element: <PublicPricelistPage /> },
+      { path: '/freelance/activate/:token', element: withPageFallback(<FreelanceActivatePage />) },
+      { path: '/invoice/:slug', element: withPageFallback(<PublicInvoicePage />) },
+      { path: '/form/:slug', element: withPageFallback(<PublicClientFormPage />) },
+      { path: '/pricelist/:slug', element: withPageFallback(<PublicPricelistPage />) },
     ],
   },
-  { path: '*', element: <NotFoundPage /> },
+  { path: '*', element: withPageFallback(<NotFoundPage />) },
 ])
