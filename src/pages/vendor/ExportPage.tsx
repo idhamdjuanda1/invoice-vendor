@@ -1,6 +1,5 @@
 import { Download, Loader2, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import * as XLSX from 'xlsx'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -121,7 +120,8 @@ function downloadCsv(rows: ExportRow[], fileName: string) {
   downloadBlob(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }), fileName)
 }
 
-function downloadExcel(rows: ExportRow[], fileName: string) {
+async function downloadExcel(rows: ExportRow[], fileName: string) {
+  const XLSX = await import('xlsx')
   const worksheet = XLSX.utils.json_to_sheet(rows)
   worksheet['!cols'] = [
     { wch: 24 },
@@ -154,6 +154,7 @@ export function ExportPage() {
   const [status, setStatus] = useState<ExportStatusFilter>('ALL')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
 
   const loadInvoices = useCallback(async () => {
     if (!profile?.uid) return
@@ -204,10 +205,18 @@ export function ExportPage() {
     downloadCsv(exportRows, makeFileName('csv'))
   }
 
-  function handleDownloadExcel() {
+  async function handleDownloadExcel() {
     setError('')
     if (!assertExportRowsAvailable()) return
-    downloadExcel(exportRows, makeFileName('xlsx'))
+    setIsExportingExcel(true)
+    try {
+      await downloadExcel(exportRows, makeFileName('xlsx'))
+    } catch (exportError) {
+      console.error('Failed to export Excel', exportError)
+      setError('File Excel belum bisa dibuat. Coba ulang beberapa saat lagi.')
+    } finally {
+      setIsExportingExcel(false)
+    }
   }
 
   return (
@@ -220,8 +229,8 @@ export function ExportPage() {
             <Button disabled={isLoading} icon={<Download size={16} />} onClick={handleDownloadCsv} variant="secondary">
               CSV
             </Button>
-            <Button disabled={isLoading} icon={<Download size={16} />} onClick={handleDownloadExcel}>
-              Excel
+            <Button disabled={isLoading || isExportingExcel} icon={isExportingExcel ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />} onClick={() => void handleDownloadExcel()}>
+              {isExportingExcel ? 'Menyiapkan...' : 'Excel'}
             </Button>
           </>
         }
