@@ -78,10 +78,18 @@ const accountingNav = [
 ]
 
 export function DashboardLayout({ role }: DashboardLayoutProps) {
-  const navigation = role === 'admin' ? adminNav : role === 'freelance' ? freelanceNav : role === 'accounting' ? accountingNav : vendorNav
   const { logout, profile } = useAuth()
   const location = useLocation()
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null)
+  const navigation = role === 'admin'
+    ? adminNav
+    : role === 'freelance'
+      ? freelanceNav
+      : role === 'accounting'
+        ? accountingNav
+        : profile?.featureAccess === 'WITHOUT_ACCOUNTING'
+          ? vendorNav.filter((item) => item.href !== '/accounting')
+          : vendorNav
 
   useEffect(() => {
     let isMounted = true

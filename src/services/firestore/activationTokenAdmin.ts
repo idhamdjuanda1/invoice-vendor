@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore'
 import { firestoreCollections } from '../../constants/firestore'
 import { firestore } from '../../lib/firebase/client'
-import type { ActivationToken, TokenDurationType, UserProfile } from '../../types/domain'
+import type { ActivationToken, FeatureAccess, TokenDurationType, UserProfile } from '../../types/domain'
 
 const durationLabels: Record<TokenDurationType, string> = {
   ONE_HOUR: '1 jam',
@@ -33,6 +33,11 @@ const durationInMs: Record<TokenDurationType, number> = {
   ONE_YEAR: 365 * 24 * 60 * 60 * 1000,
 }
 
+export const featureAccessLabels: Record<FeatureAccess, string> = {
+  FULL_ACCESS: 'Full akses',
+  WITHOUT_ACCOUNTING: 'Tanpa Accounting',
+}
+
 function generateTokenCode() {
   const bytes = new Uint8Array(8)
   crypto.getRandomValues(bytes)
@@ -48,6 +53,7 @@ function buildActivationToken(id: string, data: Record<string, unknown>): Activa
     id,
     code: String(data.code ?? id),
     durationType: data.durationType as TokenDurationType,
+    accessLevel: data.accessLevel === 'WITHOUT_ACCOUNTING' ? 'WITHOUT_ACCOUNTING' : 'FULL_ACCESS',
     isUsed: Boolean(data.isUsed),
     expiresAt: (data.expiresAt as ActivationToken['expiresAt']) ?? null,
     createdById: String(data.createdById ?? ''),
@@ -97,9 +103,11 @@ export function formatFirestoreDate(value: ActivationToken['expiresAt']) {
 }
 
 export async function createActivationToken({
+  accessLevel,
   durationType,
   superAdmin,
 }: {
+  accessLevel: FeatureAccess
   durationType: TokenDurationType
   superAdmin: UserProfile
 }) {
@@ -115,6 +123,8 @@ export async function createActivationToken({
     code: tokenCode,
     durationType,
     durationLabel: durationLabels[durationType],
+    accessLevel,
+    accessLabel: featureAccessLabels[accessLevel],
     isUsed: false,
     expiresAt,
     createdById: superAdmin.uid,

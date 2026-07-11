@@ -7,13 +7,14 @@ import { getFriendlyAuthError } from '../../features/auth/authErrors'
 import { useAuth } from '../../features/auth/useAuth'
 import {
   createActivationToken,
+  featureAccessLabels,
   formatFirestoreDate,
   getActivationTokenDurationLabel,
   getActivationTokenStatus,
   listActivationTokens,
 } from '../../services/firestore/activationTokenAdmin'
 import { listUsersForAdmin } from '../../services/firestore/adminUsers'
-import type { ActivationToken, TokenDurationType } from '../../types/domain'
+import type { ActivationToken, FeatureAccess, TokenDurationType } from '../../types/domain'
 
 const durationOptions: Array<{ label: string; value: TokenDurationType }> = [
   { label: '1 Hari (Trial)', value: 'ONE_DAY' },
@@ -27,6 +28,7 @@ const durationOptions: Array<{ label: string; value: TokenDurationType }> = [
 export function AdminTokenPage() {
   const { isSuperAdmin, profile } = useAuth()
   const [durationType, setDurationType] = useState<TokenDurationType>('ONE_DAY')
+  const [accessLevel, setAccessLevel] = useState<FeatureAccess>('FULL_ACCESS')
   const [tokens, setTokens] = useState<ActivationToken[]>([])
   const [userEmailById, setUserEmailById] = useState<Record<string, string>>({})
   const [isCreating, setIsCreating] = useState(false)
@@ -67,7 +69,7 @@ export function AdminTokenPage() {
     setIsCreating(true)
 
     try {
-      const tokenCode = await createActivationToken({ durationType, superAdmin: profile })
+      const tokenCode = await createActivationToken({ accessLevel, durationType, superAdmin: profile })
       setSuccess(`Token ${tokenCode} berhasil dibuat.`)
       await loadTokens()
     } catch (createError) {
@@ -105,7 +107,7 @@ export function AdminTokenPage() {
             Token akan disimpan di Firestore collection <span className="font-semibold">activationTokens</span>.
           </p>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+        <CardContent className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
           <label className="grid gap-2 text-sm font-medium text-app-text" htmlFor="durationType">
             Durasi token
             <select
@@ -121,11 +123,23 @@ export function AdminTokenPage() {
               ))}
             </select>
           </label>
+          <label className="grid gap-2 text-sm font-medium text-app-text" htmlFor="accessLevel">
+            Jenis akses
+            <select
+              className="min-h-11 rounded-md border border-app-border bg-white px-3 text-sm outline-none transition focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft"
+              id="accessLevel"
+              onChange={(event) => setAccessLevel(event.target.value as FeatureAccess)}
+              value={accessLevel}
+            >
+              <option value="FULL_ACCESS">Full akses semua fitur</option>
+              <option value="WITHOUT_ACCOUNTING">Tanpa Accounting</option>
+            </select>
+          </label>
           <Button disabled={isCreating || !isSuperAdmin} icon={<Plus size={16} />} onClick={() => void handleCreateToken()}>
             {isCreating ? 'Membuat...' : 'Create Token'}
           </Button>
-          {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-app-danger md:col-span-2">{error}</p> : null}
-          {success ? <p className="rounded-md bg-green-50 p-3 text-sm text-app-success md:col-span-2">{success}</p> : null}
+          {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-app-danger md:col-span-3">{error}</p> : null}
+          {success ? <p className="rounded-md bg-green-50 p-3 text-sm text-app-success md:col-span-3">{success}</p> : null}
         </CardContent>
       </Card>
 
@@ -135,11 +149,12 @@ export function AdminTokenPage() {
           <p className="mt-1 text-sm text-neutral-600">Menampilkan maksimal 50 token terbaru.</p>
         </CardHeader>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[860px] border-collapse text-left text-sm">
             <thead className="bg-app-muted text-xs uppercase text-neutral-500">
               <tr>
                 <th className="border-b border-app-border px-4 py-3 font-semibold">Token</th>
                 <th className="border-b border-app-border px-4 py-3 font-semibold">Durasi</th>
+                <th className="border-b border-app-border px-4 py-3 font-semibold">Akses</th>
                 <th className="border-b border-app-border px-4 py-3 font-semibold">Status</th>
                 <th className="border-b border-app-border px-4 py-3 font-semibold">Expired</th>
                 <th className="border-b border-app-border px-4 py-3 font-semibold">Email pendaftar</th>
@@ -149,14 +164,14 @@ export function AdminTokenPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-neutral-500" colSpan={6}>
+                  <td className="px-4 py-8 text-center text-neutral-500" colSpan={7}>
                     Memuat token...
                   </td>
                 </tr>
               ) : null}
               {!isLoading && tokens.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-neutral-500" colSpan={6}>
+                  <td className="px-4 py-8 text-center text-neutral-500" colSpan={7}>
                     Belum ada token aktivasi.
                   </td>
                 </tr>
@@ -166,6 +181,7 @@ export function AdminTokenPage() {
                     <tr className="border-b border-app-border last:border-0" key={token.id}>
                       <td className="px-4 py-4 font-mono text-sm font-semibold">{token.code}</td>
                       <td className="px-4 py-4">{getActivationTokenDurationLabel(token.durationType)}</td>
+                      <td className="px-4 py-4">{featureAccessLabels[token.accessLevel]}</td>
                       <td className="px-4 py-4">{getActivationTokenStatus(token)}</td>
                       <td className="px-4 py-4">{formatFirestoreDate(token.expiresAt)}</td>
                       <td className="px-4 py-4">{token.usedById ? userEmailById[token.usedById] ?? token.usedById : '-'}</td>

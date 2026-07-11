@@ -50,6 +50,10 @@ export function ProtectedRoute({ allowedRoles, requiredFreelanceRole, children }
     return <Navigate to={profile.role === 'super_admin' ? '/admin' : profile.role === 'freelance' ? freelancePath : '/dashboard'} replace />
   }
 
+  if (profile.role === 'user' && location.pathname.startsWith('/accounting') && profile.featureAccess === 'WITHOUT_ACCOUNTING') {
+    return <Navigate to="/dashboard" replace />
+  }
+
   if (profile.role === 'freelance') {
     const hasAccountingRole = profile.freelanceRoles.includes('ACCOUNTING')
     const hasOperationalRole = profile.freelanceRoles.some((role) => role !== 'ACCOUNTING')

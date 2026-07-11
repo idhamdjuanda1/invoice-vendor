@@ -149,6 +149,10 @@ export function AdminUsersPage() {
                         <p className="text-xs text-neutral-500">Status Akun</p>
                         <p className="mt-1 font-bold">{getUserStatus(user)}</p>
                       </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Akses</p>
+                        <p className="mt-1 font-bold">{user.featureAccess === 'WITHOUT_ACCOUNTING' ? 'Tanpa Accounting' : 'Full akses'}</p>
+                      </div>
                     </div>
                     <Button
                       className="mt-4 w-full"
@@ -172,6 +176,7 @@ export function AdminUsersPage() {
                       <th className="px-5 py-3">Role</th>
                       <th className="px-5 py-3">Status</th>
                       <th className="px-5 py-3">Status Token</th>
+                      <th className="px-5 py-3">Akses</th>
                       <th className="px-5 py-3">Expired</th>
                       <th className="px-5 py-3">Token</th>
                       <th className="px-5 py-3">Aksi</th>
@@ -185,6 +190,7 @@ export function AdminUsersPage() {
                         <td className="px-5 py-4">{user.role === 'super_admin' ? 'Super Admin' : 'Vendor'}</td>
                         <td className="px-5 py-4">{getUserStatus(user)}</td>
                         <td className="px-5 py-4"><TokenStatusBadge user={user} /></td>
+                        <td className="px-5 py-4">{user.featureAccess === 'WITHOUT_ACCOUNTING' ? 'Tanpa Accounting' : 'Full akses'}</td>
                         <td className="px-5 py-4">{formatFirestoreDate(user.activationExpiresAt)}</td>
                         <td className="px-5 py-4 font-mono text-xs">{user.activationTokenId ?? '-'}</td>
                         <td className="px-5 py-4">

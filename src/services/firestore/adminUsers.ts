@@ -8,6 +8,10 @@ function normalizeRole(value: unknown): UserProfile['role'] {
   return 'user'
 }
 
+function normalizeFeatureAccess(value: unknown): UserProfile['featureAccess'] {
+  return value === 'WITHOUT_ACCOUNTING' ? 'WITHOUT_ACCOUNTING' : 'FULL_ACCESS'
+}
+
 function buildUserProfile(id: string, data: Record<string, unknown>): UserProfile {
   return {
     id,
@@ -23,6 +27,7 @@ function buildUserProfile(id: string, data: Record<string, unknown>): UserProfil
     activatedAt: (data.activatedAt as UserProfile['activatedAt']) ?? null,
     activationExpiresAt: (data.activationExpiresAt as UserProfile['activationExpiresAt']) ?? null,
     activationTokenId: typeof data.activationTokenId === 'string' ? data.activationTokenId : null,
+    featureAccess: normalizeFeatureAccess(data.featureAccess),
     deletedAt: (data.deletedAt as UserProfile['deletedAt']) ?? null,
     createdAt: (data.createdAt as UserProfile['createdAt']) ?? null,
     updatedAt: (data.updatedAt as UserProfile['updatedAt']) ?? null,

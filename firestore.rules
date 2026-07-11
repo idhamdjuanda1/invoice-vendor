@@ -48,8 +48,14 @@ service cloud.firestore {
         && currentProfile().freelanceRoles.hasAny(['ACCOUNTING']);
     }
 
+    function ownerHasAccountingAccess(userId) {
+      return isOwner(userId)
+        && (!('featureAccess' in get(userPath(userId)).data)
+          || get(userPath(userId)).data.featureAccess == 'FULL_ACCESS');
+    }
+
     function canAccessAccounting(userId) {
-      return isSuperAdmin() || isOwner(userId) || isAccountingForVendor(userId);
+      return isSuperAdmin() || ownerHasAccountingAccess(userId) || isAccountingForVendor(userId);
     }
 
     function isOwner(userId) {
@@ -79,6 +85,7 @@ service cloud.firestore {
         && request.resource.data.activationTokenId == 'FREE_TRIAL'
         && request.resource.data.activatedAt == request.time
         && request.resource.data.activationExpiresAt is timestamp
+        && request.resource.data.featureAccess == 'FULL_ACCESS'
         && request.resource.data.activationExpiresAt > request.time
         && request.resource.data.activationExpiresAt <= request.time + duration.value(25, 'h')
         && request.resource.data.deletedAt == null
@@ -127,13 +134,19 @@ service cloud.firestore {
         && request.resource.data.isSuspended == resource.data.isSuspended
         && request.resource.data.deletedAt == resource.data.deletedAt
         && request.resource.data.activationTokenId is string
+        && request.resource.data.featureAccess in ['FULL_ACCESS', 'WITHOUT_ACCOUNTING']
         && request.resource.data.activatedAt is timestamp
         && request.resource.data.activationExpiresAt is timestamp
+        && (
+          !('accessLevel' in get(/databases/$(database)/documents/activationTokens/$(request.resource.data.activationTokenId)).data)
+          || request.resource.data.featureAccess == get(/databases/$(database)/documents/activationTokens/$(request.resource.data.activationTokenId)).data.accessLevel
+        )
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'isActive',
           'activatedAt',
           'activationExpiresAt',
           'activationTokenId',
+          'featureAccess',
           'updatedAt'
         ]);
     }

@@ -9,6 +9,7 @@ export type TokenDurationType =
   | 'THREE_MONTHS'
   | 'SIX_MONTHS'
   | 'ONE_YEAR'
+export type FeatureAccess = 'FULL_ACCESS' | 'WITHOUT_ACCOUNTING'
 export type PaymentStatus = 'BELUM_BAYAR' | 'DP' | 'CICILAN' | 'LUNAS'
 export type PaymentMethod = 'TRANSFER_BANK' | 'CASH' | 'QRIS' | 'OTHER'
 export type DiscountType = 'NOMINAL' | 'PERCENTAGE'
@@ -213,6 +214,7 @@ export type UserProfile = {
   activatedAt: FirestoreDate
   activationExpiresAt: FirestoreDate
   activationTokenId: string | null
+  featureAccess: FeatureAccess
   deletedAt: FirestoreDate
   createdAt: FirestoreDate
   updatedAt: FirestoreDate
@@ -222,6 +224,7 @@ export type ActivationToken = {
   id: string
   code: string
   durationType: TokenDurationType
+  accessLevel: FeatureAccess
   isUsed: boolean
   expiresAt: FirestoreDate
   createdById: string

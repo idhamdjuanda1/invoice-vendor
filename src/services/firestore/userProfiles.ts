@@ -7,6 +7,10 @@ import { FREE_TRIAL_TOKEN_ID } from '../../lib/activation'
 import { firestore } from '../../lib/firebase/client'
 import type { FreelanceRole, UserProfile } from '../../types/domain'
 
+function normalizeFeatureAccess(value: unknown): UserProfile['featureAccess'] {
+  return value === 'WITHOUT_ACCOUNTING' ? 'WITHOUT_ACCOUNTING' : 'FULL_ACCESS'
+}
+
 function buildUserProfile(id: string, data: Record<string, unknown>): UserProfile {
   return {
     id,
@@ -22,6 +26,7 @@ function buildUserProfile(id: string, data: Record<string, unknown>): UserProfil
     activatedAt: (data.activatedAt as UserProfile['activatedAt']) ?? null,
     activationExpiresAt: (data.activationExpiresAt as UserProfile['activationExpiresAt']) ?? null,
     activationTokenId: typeof data.activationTokenId === 'string' ? data.activationTokenId : null,
+    featureAccess: normalizeFeatureAccess(data.featureAccess),
     deletedAt: (data.deletedAt as UserProfile['deletedAt']) ?? null,
     createdAt: (data.createdAt as UserProfile['createdAt']) ?? null,
     updatedAt: (data.updatedAt as UserProfile['updatedAt']) ?? null,
@@ -63,6 +68,7 @@ export async function bootstrapSuperAdminProfile(firebaseUser: User) {
       activatedAt: now,
       activationExpiresAt: null,
       activationTokenId: null,
+      featureAccess: 'FULL_ACCESS',
       deletedAt: null,
       createdAt: now,
       updatedAt: now,

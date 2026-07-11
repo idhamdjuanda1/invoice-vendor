@@ -46,6 +46,7 @@ export async function registerVendorWithFreeTrial(input: RegisterInput) {
       activatedAt: serverTimestamp(),
       activationExpiresAt: Timestamp.fromMillis(Date.now() + freeTrialDurationInMs),
       activationTokenId: FREE_TRIAL_TOKEN_ID,
+      featureAccess: 'FULL_ACCESS',
       deletedAt: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -87,6 +88,7 @@ export async function renewVendorActivationToken({
     const isUsed = Boolean(token.isUsed)
     const expiresAt = getTimestampMs(token.expiresAt)
     const durationType = token.durationType as TokenDurationType
+    const featureAccess = token.accessLevel === 'WITHOUT_ACCOUNTING' ? 'WITHOUT_ACCOUNTING' : 'FULL_ACCESS'
 
     if (isUsed) throw new Error('TOKEN_USED')
     if (token.isActive === false || token.isRevoked === true || token.deletedAt) throw new Error('TOKEN_REVOKED')
@@ -100,6 +102,7 @@ export async function renewVendorActivationToken({
       activatedAt: serverTimestamp(),
       activationExpiresAt,
       activationTokenId: activationCode,
+      featureAccess,
       updatedAt: serverTimestamp(),
     })
 
