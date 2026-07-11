@@ -80,6 +80,18 @@ const accountingNav = [
   { label: 'Laporan', href: '/accounting?tab=reports', icon: FileBarChart },
 ]
 
+function shouldSyncVendorSnapshot(userId: string) {
+  const key = `invoice-vendor:vendor-snapshot-synced:${userId}`
+  try {
+    if (sessionStorage.getItem(key) === '1') return false
+    sessionStorage.setItem(key, '1')
+  } catch {
+    return true
+  }
+
+  return true
+}
+
 export function DashboardLayout({ role }: DashboardLayoutProps) {
   const { logout, profile } = useAuth()
   const location = useLocation()
@@ -107,7 +119,7 @@ export function DashboardLayout({ role }: DashboardLayoutProps) {
       try {
         const loadedProfile = await getBusinessProfile(businessOwnerId)
         if (isMounted) setBusinessProfile(loadedProfile)
-        if (loadedProfile) {
+        if (loadedProfile && shouldSyncVendorSnapshot(businessOwnerId)) {
           void syncPricelistsWithBusinessProfile(businessOwnerId).catch((error) => {
             console.error('Failed to sync public vendor profile', error)
           })
