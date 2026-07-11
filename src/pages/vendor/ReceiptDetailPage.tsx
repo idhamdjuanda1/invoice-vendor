@@ -9,7 +9,6 @@ import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate } from '../../lib/formatters/date'
 import { paymentMethodLabels } from '../../lib/formatters/invoice'
 import { makePrintTitle } from '../../lib/formatters/printTitle'
-import { generateReceiptPdf } from '../../lib/pdf/documentPdf'
 import { softDeletePayment } from '../../services/firestore/payments'
 import { getReceipt, softDeleteReceipt } from '../../services/firestore/receipts'
 import type { ReceiptRecord } from '../../types/domain'
@@ -43,6 +42,7 @@ export function ReceiptDetailPage() {
     setErrorMessage('')
 
     try {
+      const { generateReceiptPdf } = await import('../../lib/pdf/documentPdf')
       generateReceiptPdf({
         receipt,
         filename: makePrintTitle(['Kuitansi', receipt.clientName || receipt.receiptNumber]),

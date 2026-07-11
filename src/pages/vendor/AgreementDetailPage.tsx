@@ -9,7 +9,6 @@ import { eventFieldDefinitions, eventTypeLabels } from '../../lib/events/eventDe
 import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate } from '../../lib/formatters/date'
 import { makePrintTitle } from '../../lib/formatters/printTitle'
-import { generateAgreementPdf } from '../../lib/pdf/documentPdf'
 import { syncAgreementFromInvoice } from '../../services/firestore/agreements'
 import { getBusinessProfile } from '../../services/firestore/businessProfiles'
 import type { AgreementRecord, BusinessProfile } from '../../types/domain'
@@ -79,6 +78,7 @@ export function AgreementDetailPage() {
     setErrorMessage('')
 
     try {
+      const { generateAgreementPdf } = await import('../../lib/pdf/documentPdf')
       await generateAgreementPdf({
         agreement,
         clauses: displayClauses,

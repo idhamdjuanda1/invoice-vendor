@@ -12,7 +12,6 @@ import { formatCurrency } from '../../lib/formatters/currency'
 import { formatDisplayDate } from '../../lib/formatters/date'
 import { paymentMethodLabels, paymentStatusLabels } from '../../lib/formatters/invoice'
 import { makePrintTitle } from '../../lib/formatters/printTitle'
-import { generateInvoicePdf } from '../../lib/pdf/documentPdf'
 import { createAgreementFromInvoice } from '../../services/firestore/agreements'
 import { getBusinessProfile } from '../../services/firestore/businessProfiles'
 import { getInvoice } from '../../services/firestore/invoices'
@@ -108,6 +107,7 @@ export function InvoiceDetailPage() {
     setErrorMessage('')
 
     try {
+      const { generateInvoicePdf } = await import('../../lib/pdf/documentPdf')
       generateInvoicePdf({
         invoice,
         payments,
