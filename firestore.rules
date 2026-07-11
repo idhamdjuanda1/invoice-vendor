@@ -306,6 +306,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /partners/{partnerId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
+      allow delete: if false;
+    }
+
     match /invoiceSequences/{sequenceId} {
       allow read: if isSuperAdmin() || isOwner(resource.data.userId) || readsOwnSequenceDocument(sequenceId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
@@ -380,6 +387,13 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || isOwner(resource.data.userId) || isAccountingForVendor(resource.data.userId);
       allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
       allow update: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow delete: if false;
+    }
+
+    match /partnerCommissionPayments/{paymentId} {
+      allow read: if isSuperAdmin() || isOwner(resource.data.userId);
+      allow create: if isSuperAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isSuperAdmin() || (isOwner(resource.data.userId) && keepsOwner());
       allow delete: if false;
     }
 

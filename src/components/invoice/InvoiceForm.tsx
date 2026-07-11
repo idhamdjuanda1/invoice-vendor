@@ -14,11 +14,14 @@ import { listClients, type ClientInput } from '../../services/firestore/clients'
 import { createInvoice, updateInvoice, type InvoiceMutationInput } from '../../services/firestore/invoices'
 import { listServicePackages } from '../../services/firestore/packages'
 import { listPricelists } from '../../services/firestore/pricelists'
+import { calculateCommission, listPartners, partnerCategoryLabels } from '../../services/firestore/partners'
 import type {
   ClientRecord,
   DiscountType,
   EventType,
   InvoiceRecord,
+  LeadSourceType,
+  PartnerRecord,
   PaymentMethod,
   PaymentStatus,
   PricelistRecord,
@@ -64,6 +67,7 @@ function getErrorMessage(error: unknown) {
     INVOICE_CLIENT_REQUIRED: 'Pilih klien yang sudah tersimpan atau buat klien baru.',
     INVOICE_PACKAGES_REQUIRED: 'Pilih minimal satu paket.',
     INVOICE_EVENT_DATE_REQUIRED: 'Tanggal acara wajib diisi.',
+    INVOICE_PARTNER_REQUIRED: 'Pilih partner untuk sumber job ini.',
     INVOICE_NOT_FOUND: 'Invoice tidak ditemukan.',
   }
 
@@ -76,6 +80,7 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
   const [clients, setClients] = useState<ClientRecord[]>([])
   const [packages, setPackages] = useState<ServicePackage[]>([])
   const [pricelists, setPricelists] = useState<PricelistRecord[]>([])
+  const [partners, setPartners] = useState<PartnerRecord[]>([])
   const [clientMode, setClientMode] = useState<'existing' | 'new'>(invoice ? 'existing' : 'existing')
   const [clientId, setClientId] = useState(invoice?.clientId ?? '')
   const [existingClient, setExistingClient] = useState<ClientInput>(invoiceClientToInput(invoice))
@@ -99,6 +104,18 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
   const [paymentAmountInput, setPaymentAmountInput] = useState(
     invoice?.totalPaid ? String(invoice.totalPaid) : '',
   )
+  const [leadSourceType, setLeadSourceType] = useState<LeadSourceType>(invoice?.leadSourceType ?? 'DIRECT')
+  const [partnerId, setPartnerId] = useState(invoice?.partnerId ?? '')
+  const [partnerCommissionMode, setPartnerCommissionMode] = useState<'NONE' | 'PERCENTAGE' | 'NOMINAL'>(
+    invoice?.partnerCommissionType === 'PERCENTAGE'
+      ? 'PERCENTAGE'
+      : invoice?.partnerCommissionType === 'NOMINAL'
+        ? 'NOMINAL'
+        : 'NONE',
+  )
+  const [partnerCommissionInput, setPartnerCommissionInput] = useState(
+    invoice?.partnerCommissionValue ? String(invoice.partnerCommissionValue) : '',
+  )
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(invoice?.paymentMethod ?? defaultPaymentMethod)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -113,14 +130,16 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
       setErrorMessage('')
 
       try {
-        const [clientList, packageList, pricelistList] = await Promise.all([
+        const [clientList, packageList, pricelistList, partnerList] = await Promise.all([
           listClients(profile.uid),
           listServicePackages(profile.uid),
           listPricelists(profile.uid),
+          listPartners(profile.uid, mode === 'edit'),
         ])
         setClients(clientList)
         setPackages(packageList.filter((servicePackage) => servicePackage.isActive))
         setPricelists(pricelistList)
+        setPartners(partnerList)
 
         if (!invoice && clientList.length === 0) {
           setClientMode('new')
@@ -134,7 +153,7 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
     }
 
     void loadData()
-  }, [invoice, profile?.uid])
+  }, [invoice, mode, profile?.uid])
 
   useEffect(() => {
     if (clientMode !== 'existing') return
@@ -185,6 +204,12 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
         : 0
   const totalAmount = Math.max(subtotal - discountAmount, 0)
   const paymentAmount = Math.min(parseCurrencyInput(paymentAmountInput), totalAmount)
+  const partnerCommissionType: DiscountType | null =
+    leadSourceType === 'PARTNER' && partnerCommissionMode !== 'NONE' ? partnerCommissionMode : null
+  const partnerCommissionValue = partnerCommissionMode === 'NOMINAL'
+    ? parseCurrencyInput(partnerCommissionInput)
+    : Number(partnerCommissionInput || 0)
+  const partnerCommissionAmount = calculateCommission(totalAmount, partnerCommissionType, partnerCommissionValue)
   const remainingAmount = Math.max(totalAmount - paymentAmount, 0)
   const paymentStatus: PaymentStatus =
     paymentAmount <= 0 ? 'BELUM_BAYAR' : paymentAmount >= totalAmount ? 'LUNAS' : 'DP'
@@ -228,17 +253,21 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
             ? 'Potongan harga / negosiasi'
             : '',
       discountSourcePricelistId: discountMode === 'PRICELIST' ? discountPricelistId : '',
+      leadSourceType,
+      partnerId: leadSourceType === 'PARTNER' ? partnerId : '',
+      partnerCommissionType,
+      partnerCommissionValue,
       paymentAmount,
       paymentMethod,
     }
 
     try {
       if (mode === 'create') {
-        await createInvoice(profile.uid, payload, { clients, packages })
+        await createInvoice(profile.uid, payload, { clients, packages, partners })
         setSuccessMessage('Invoice berhasil dibuat.')
         navigate('/invoices')
       } else if (invoice) {
-        await updateInvoice(profile.uid, invoice.id, payload, { clients, packages })
+        await updateInvoice(profile.uid, invoice.id, payload, { clients, packages, partners })
         setSuccessMessage('Invoice berhasil diperbarui.')
         navigate(`/invoices/${invoice.id}`)
       }
@@ -373,6 +402,71 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
               />
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <h2 className="text-base font-semibold">Sumber Job & Komisi Partner</h2>
+          <p className="mt-1 text-sm text-neutral-500">Catat apakah job berasal dari klien langsung atau partner.</p>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button type="button" variant={leadSourceType === 'DIRECT' ? 'primary' : 'secondary'} onClick={() => setLeadSourceType('DIRECT')}>
+              Klien Langsung
+            </Button>
+            <Button type="button" variant={leadSourceType === 'PARTNER' ? 'primary' : 'secondary'} onClick={() => setLeadSourceType('PARTNER')}>
+              Partner
+            </Button>
+          </div>
+
+          {leadSourceType === 'PARTNER' ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-app-text">
+                Partner
+                <select
+                  className="min-h-12 rounded-md border border-app-border bg-white px-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:min-h-11 sm:text-sm"
+                  value={partnerId}
+                  onChange={(event) => setPartnerId(event.target.value)}
+                >
+                  <option value="">Pilih partner</option>
+                  {invoice?.partnerId && invoice.partnerName && !partners.some((partner) => partner.id === invoice.partnerId) ? (
+                    <option value={invoice.partnerId}>{invoice.partnerName}</option>
+                  ) : null}
+                  {partners.map((partner) => (
+                    <option key={partner.id} value={partner.id}>
+                      {partner.name} - {partnerCategoryLabels[partner.category]}{partner.isActive ? '' : ' (Nonaktif)'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-app-text">
+                Tipe Komisi
+                <select
+                  className="min-h-12 rounded-md border border-app-border bg-white px-3 text-base outline-none focus:border-app-gold focus:ring-2 focus:ring-app-gold-soft sm:min-h-11 sm:text-sm"
+                  value={partnerCommissionMode}
+                  onChange={(event) => setPartnerCommissionMode(event.target.value as typeof partnerCommissionMode)}
+                >
+                  <option value="NONE">Tanpa komisi</option>
+                  <option value="PERCENTAGE">Persentase (%)</option>
+                  <option value="NOMINAL">Nominal (Rp)</option>
+                </select>
+              </label>
+              {partnerCommissionMode !== 'NONE' ? (
+                <Input
+                  hint={partnerCommissionMode === 'PERCENTAGE' ? 'Contoh: 10 untuk komisi 10%.' : 'Contoh: 300000 untuk komisi Rp300.000.'}
+                  inputMode="numeric"
+                  label={partnerCommissionMode === 'PERCENTAGE' ? 'Persentase Komisi' : 'Nominal Komisi'}
+                  value={partnerCommissionInput}
+                  onChange={(event) => setPartnerCommissionInput(event.target.value)}
+                />
+              ) : null}
+              <div className="rounded-md bg-app-muted p-4">
+                <p className="text-xs text-neutral-500">Komisi / Hutang Partner</p>
+                <p className="mt-1 text-lg font-bold">{formatCurrency(partnerCommissionAmount)}</p>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

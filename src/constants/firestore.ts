@@ -7,6 +7,8 @@ export const firestoreCollections = {
   packageCategories: 'packageCategories',
   packages: 'packages',
   clients: 'clients',
+  partners: 'partners',
+  partnerCommissionPayments: 'partnerCommissionPayments',
   invoiceSequences: 'invoiceSequences',
   receiptSequences: 'receiptSequences',
   invoices: 'invoices',

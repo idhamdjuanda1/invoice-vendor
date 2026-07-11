@@ -21,6 +21,8 @@ import type {
   InvoicePackageItem,
   InvoicePaymentEntry,
   InvoiceRecord,
+  LeadSourceType,
+  PartnerRecord,
   PaymentMethod,
   ServicePackage,
 } from '../../types/domain'
@@ -29,6 +31,7 @@ import { getBusinessProfile } from './businessProfiles'
 import { createInvoiceEvent } from './invoiceEvents'
 import { listPayments, recalculateInvoicePayments } from './payments'
 import { createReceiptForPayment } from './receipts'
+import { calculateCommission } from './partners'
 
 export type InvoiceMutationInput = {
   clientMode: 'existing' | 'new'
@@ -44,6 +47,10 @@ export type InvoiceMutationInput = {
   discountValue: number
   discountLabel: string
   discountSourcePricelistId: string
+  leadSourceType: LeadSourceType
+  partnerId: string
+  partnerCommissionType: DiscountType | null
+  partnerCommissionValue: number
   paymentAmount: number
   paymentMethod: PaymentMethod
 }
@@ -51,6 +58,7 @@ export type InvoiceMutationInput = {
 export type InvoiceMutationDependencies = {
   clients: ClientRecord[]
   packages: ServicePackage[]
+  partners?: PartnerRecord[]
 }
 
 function buildInvoiceRecord(id: string, data: Record<string, unknown>): InvoiceRecord {
@@ -84,6 +92,18 @@ function buildInvoiceRecord(id: string, data: Record<string, unknown>): InvoiceR
     discountLabel: typeof data.discountLabel === 'string' ? data.discountLabel : null,
     discountSourcePricelistId:
       typeof data.discountSourcePricelistId === 'string' ? data.discountSourcePricelistId : null,
+    leadSourceType: data.leadSourceType === 'PARTNER' ? 'PARTNER' : 'DIRECT',
+    partnerId: typeof data.partnerId === 'string' ? data.partnerId : null,
+    partnerName: typeof data.partnerName === 'string' ? data.partnerName : null,
+    partnerCategory: typeof data.partnerCategory === 'string' ? data.partnerCategory as InvoiceRecord['partnerCategory'] : null,
+    partnerCommissionType:
+      data.partnerCommissionType === 'NOMINAL' || data.partnerCommissionType === 'PERCENTAGE'
+        ? data.partnerCommissionType
+        : null,
+    partnerCommissionValue: Number(data.partnerCommissionValue ?? 0),
+    partnerCommissionAmount: Number(data.partnerCommissionAmount ?? 0),
+    partnerCommissionPaid: Number(data.partnerCommissionPaid ?? 0),
+    partnerCommissionStatus: (data.partnerCommissionStatus as InvoiceRecord['partnerCommissionStatus']) ?? 'UNPAID',
     totalAmount,
     totalPaid: Number(data.totalPaid ?? 0),
     remainingAmount: Number(data.remainingAmount ?? 0),
@@ -154,6 +174,13 @@ function normalizeInvoiceInput(input: InvoiceMutationInput, dependencies: Invoic
         ? Math.min(discountValue, subtotal)
         : 0
   const totalAmount = Math.max(subtotal - discountAmount, 0)
+  const partner = input.leadSourceType === 'PARTNER'
+    ? dependencies.partners?.find((partnerRecord) => partnerRecord.id === input.partnerId)
+    : null
+  if (input.leadSourceType === 'PARTNER' && !partner) throw new Error('INVOICE_PARTNER_REQUIRED')
+  const partnerCommissionAmount = partner
+    ? calculateCommission(totalAmount, input.partnerCommissionType, Math.max(Number(input.partnerCommissionValue) || 0, 0))
+    : 0
   const paidAmount = Math.min(Math.max(Number(input.paymentAmount) || 0, 0), totalAmount)
   const initialPayment =
     paidAmount > 0
@@ -177,6 +204,15 @@ function normalizeInvoiceInput(input: InvoiceMutationInput, dependencies: Invoic
       discountAmount > 0 && input.discountType === 'PERCENTAGE'
         ? input.discountSourcePricelistId.trim() || null
         : null,
+    leadSourceType: partner ? 'PARTNER' as const : 'DIRECT' as const,
+    partnerId: partner?.id ?? null,
+    partnerName: partner?.name ?? null,
+    partnerCategory: partner?.category ?? null,
+    partnerCommissionType: partnerCommissionAmount > 0 ? input.partnerCommissionType : null,
+    partnerCommissionValue: partnerCommissionAmount > 0 ? Math.max(Number(input.partnerCommissionValue) || 0, 0) : 0,
+    partnerCommissionAmount,
+    partnerCommissionPaid: 0,
+    partnerCommissionStatus: partnerCommissionAmount > 0 ? 'UNPAID' as const : 'PAID' as const,
     totalAmount,
     totalPaid: paidAmount,
     remainingAmount: Math.max(totalAmount - paidAmount, 0),
@@ -278,6 +314,15 @@ export async function createInvoice(
       discountAmount: normalized.discountAmount,
       discountLabel: normalized.discountLabel,
       discountSourcePricelistId: normalized.discountSourcePricelistId,
+      leadSourceType: normalized.leadSourceType,
+      partnerId: normalized.partnerId,
+      partnerName: normalized.partnerName,
+      partnerCategory: normalized.partnerCategory,
+      partnerCommissionType: normalized.partnerCommissionType,
+      partnerCommissionValue: normalized.partnerCommissionValue,
+      partnerCommissionAmount: normalized.partnerCommissionAmount,
+      partnerCommissionPaid: 0,
+      partnerCommissionStatus: normalized.partnerCommissionStatus,
       totalAmount: normalized.totalAmount,
       totalPaid: normalized.totalPaid,
       remainingAmount: normalized.remainingAmount,
@@ -343,6 +388,16 @@ export async function updateInvoice(
     normalized.totalAmount,
   )
   const remainingAmount = Math.max(normalized.totalAmount - totalPaid, 0)
+  const partnerCommissionPaid = existingInvoice.partnerId === normalized.partnerId
+    ? Math.min(existingInvoice.partnerCommissionPaid, normalized.partnerCommissionAmount)
+    : 0
+  const partnerCommissionStatus = normalized.partnerCommissionAmount <= 0
+    ? 'PAID'
+    : partnerCommissionPaid <= 0
+      ? 'UNPAID'
+      : partnerCommissionPaid >= normalized.partnerCommissionAmount
+        ? 'PAID'
+        : 'PARTIAL'
 
   await updateDoc(doc(firestore, firestoreCollections.invoices, invoiceId), {
     userId,
@@ -361,6 +416,15 @@ export async function updateInvoice(
     discountAmount: normalized.discountAmount,
     discountLabel: normalized.discountLabel,
     discountSourcePricelistId: normalized.discountSourcePricelistId,
+    leadSourceType: normalized.leadSourceType,
+    partnerId: normalized.partnerId,
+    partnerName: normalized.partnerName,
+    partnerCategory: normalized.partnerCategory,
+    partnerCommissionType: normalized.partnerCommissionType,
+    partnerCommissionValue: normalized.partnerCommissionValue,
+    partnerCommissionAmount: normalized.partnerCommissionAmount,
+    partnerCommissionPaid,
+    partnerCommissionStatus,
     totalAmount: normalized.totalAmount,
     totalPaid,
     remainingAmount,

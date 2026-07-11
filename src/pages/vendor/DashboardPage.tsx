@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, CheckCircle2, Clock3, FileText, Loader2, WalletCards } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock3, FileText, Handshake, Loader2, WalletCards } from 'lucide-react'
 import { Card, CardContent } from '../../components/ui/Card'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { StatCard } from '../../components/ui/StatCard'
@@ -64,6 +64,19 @@ export function DashboardPage() {
     const totalOutstanding = invoices.reduce((sum, invoice) => sum + invoice.remainingAmount, 0)
     const paidInvoices = invoices.filter((invoice) => invoice.paymentStatus === 'LUNAS').length
     const currentMonthInvoices = invoices.filter(isCurrentMonth).length
+    const directJobs = invoices.filter((invoice) => invoice.leadSourceType !== 'PARTNER').length
+    const partnerJobs = invoices.filter((invoice) => invoice.leadSourceType === 'PARTNER').length
+    const partnerCommissionTotal = invoices.reduce((sum, invoice) => sum + invoice.partnerCommissionAmount, 0)
+    const partnerCommissionPaid = invoices.reduce((sum, invoice) => sum + invoice.partnerCommissionPaid, 0)
+    const partnerCounts = invoices
+      .filter((invoice) => invoice.leadSourceType === 'PARTNER' && invoice.partnerId)
+      .reduce<Record<string, { name: string; count: number }>>((map, invoice) => {
+        const partnerId = invoice.partnerId ?? ''
+        const current = map[partnerId] ?? { name: invoice.partnerName ?? 'Partner', count: 0 }
+        map[partnerId] = { ...current, count: current.count + 1 }
+        return map
+      }, {})
+    const topPartner = Object.values(partnerCounts).sort((a, b) => b.count - a.count)[0]
 
     const monthlyRevenue = monthLabels.map((label, index) => ({
       label,
@@ -79,6 +92,12 @@ export function DashboardPage() {
       totalOutstanding,
       paidInvoices,
       currentMonthInvoices,
+      directJobs,
+      partnerJobs,
+      topPartnerName: topPartner ? `${topPartner.name} (${topPartner.count} job)` : '-',
+      partnerCommissionTotal,
+      partnerCommissionPaid,
+      partnerCommissionUnpaid: Math.max(partnerCommissionTotal - partnerCommissionPaid, 0),
       monthlyRevenue,
       maxMonthlyRevenue,
       recentInvoices: invoices.slice(0, 6),
@@ -146,6 +165,33 @@ export function DashboardPage() {
           label="Invoice bulan ini"
           value={isLoading ? '...' : String(summary.currentMonthInvoices)}
           helper="Tanggal invoice bulan berjalan"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<Handshake size={20} />}
+          label="Job klien langsung"
+          value={isLoading ? '...' : String(summary.directJobs)}
+          helper="Invoice tanpa partner"
+        />
+        <StatCard
+          icon={<Handshake size={20} />}
+          label="Job dari partner"
+          value={isLoading ? '...' : String(summary.partnerJobs)}
+          helper={`Terbanyak: ${summary.topPartnerName}`}
+        />
+        <StatCard
+          icon={<WalletCards size={20} />}
+          label="Hutang komisi"
+          value={isLoading ? '...' : formatCurrency(summary.partnerCommissionTotal)}
+          helper={`Belum dibayar ${formatCurrency(summary.partnerCommissionUnpaid)}`}
+        />
+        <StatCard
+          icon={<CheckCircle2 size={20} />}
+          label="Komisi dibayar"
+          value={isLoading ? '...' : formatCurrency(summary.partnerCommissionPaid)}
+          helper="Total pembayaran ke partner"
         />
       </div>
 

@@ -13,6 +13,9 @@ export type FeatureAccess = 'FULL_ACCESS' | 'WITHOUT_ACCOUNTING'
 export type PaymentStatus = 'BELUM_BAYAR' | 'DP' | 'CICILAN' | 'LUNAS'
 export type PaymentMethod = 'TRANSFER_BANK' | 'CASH' | 'QRIS' | 'OTHER'
 export type DiscountType = 'NOMINAL' | 'PERCENTAGE'
+export type LeadSourceType = 'DIRECT' | 'PARTNER'
+export type PartnerCategory = 'WEDDING_ORGANIZER' | 'DEKORASI' | 'MAKE_UP_ARTIST' | 'EVENT_ORGANIZER' | 'VENUE' | 'VENDOR_LAINNYA'
+export type PartnerCommissionStatus = 'UNPAID' | 'PARTIAL' | 'PAID'
 export type EventType = 'WEDDING' | 'PREWEDDING' | 'LAMARAN' | 'CORPORATE'
 export type EventDataStatus = 'NOT_FILLED' | 'PARTIAL' | 'COMPLETE'
 export type FreelanceRole = 'FOTOGRAFER' | 'VIDEOGRAFER' | 'EDITOR_FOTO' | 'EDITOR_VIDEO' | 'ASISTEN' | 'ACCOUNTING'
@@ -126,6 +129,36 @@ export type JobDeliverableRecord = {
   links: JobDeliverableLinks
   notes: string | null
   uploadedAt: FirestoreDate
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type PartnerRecord = {
+  id: string
+  userId: string
+  name: string
+  category: PartnerCategory
+  picName: string | null
+  whatsappNumber: string | null
+  email: string | null
+  address: string | null
+  notes: string | null
+  isActive: boolean
+  createdAt: FirestoreDate
+  updatedAt: FirestoreDate
+  deletedAt: FirestoreDate
+}
+
+export type PartnerCommissionPaymentRecord = {
+  id: string
+  userId: string
+  partnerId: string
+  invoiceId: string
+  amount: number
+  paymentDate: FirestoreDate
+  paymentMethod: PaymentMethod
+  notes: string | null
   createdAt: FirestoreDate
   updatedAt: FirestoreDate
   deletedAt: FirestoreDate
@@ -442,6 +475,15 @@ export type InvoiceRecord = {
   discountAmount: number
   discountLabel: string | null
   discountSourcePricelistId: string | null
+  leadSourceType: LeadSourceType
+  partnerId: string | null
+  partnerName: string | null
+  partnerCategory: PartnerCategory | null
+  partnerCommissionType: DiscountType | null
+  partnerCommissionValue: number
+  partnerCommissionAmount: number
+  partnerCommissionPaid: number
+  partnerCommissionStatus: PartnerCommissionStatus
   totalAmount: number
   totalPaid: number
   remainingAmount: number

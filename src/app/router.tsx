@@ -31,6 +31,8 @@ import { InvoicesPage } from '../pages/vendor/InvoicesPage'
 import { FreelancerDetailPage } from '../pages/vendor/FreelancerDetailPage'
 import { FreelancersPage } from '../pages/vendor/FreelancersPage'
 import { PackagesPage } from '../pages/vendor/PackagesPage'
+import { PartnerReportsPage } from '../pages/vendor/PartnerReportsPage'
+import { PartnersPage } from '../pages/vendor/PartnersPage'
 import { PaymentsPage } from '../pages/vendor/PaymentsPage'
 import { PricelistCreatePage } from '../pages/vendor/PricelistCreatePage'
 import { PricelistsPage } from '../pages/vendor/PricelistsPage'
@@ -60,6 +62,8 @@ export const router = createBrowserRouter([
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/profile', element: <ProfilePage /> },
       { path: '/packages', element: <PackagesPage /> },
+      { path: '/partners', element: <PartnersPage /> },
+      { path: '/partner-reports', element: <PartnerReportsPage /> },
       { path: '/freelancers', element: <FreelancersPage /> },
       { path: '/freelancers/:freelancerId', element: <FreelancerDetailPage /> },
       { path: '/editor', element: <EditorDashboardPage /> },
