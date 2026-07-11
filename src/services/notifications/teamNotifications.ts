@@ -7,6 +7,15 @@ import type { InvoiceEventDetail, InvoiceRecord, TeamAssignmentMember } from '..
 
 type SendChannel = 'whatsapp' | 'email'
 
+const teamRoleLabels: Record<TeamAssignmentMember['freelanceType'], string> = {
+  FOTOGRAFER: 'Fotografer',
+  VIDEOGRAFER: 'Videografer',
+  EDITOR_FOTO: 'Editor Foto',
+  EDITOR_VIDEO: 'Editor Video',
+  ASISTEN: 'Asisten',
+  ACCOUNTING: 'Accounting',
+}
+
 function normalizeWhatsapp(value: string | null) {
   if (!value) return ''
   const digits = value.replace(/\D/g, '')
@@ -14,7 +23,24 @@ function normalizeWhatsapp(value: string | null) {
   return digits.startsWith('0') ? `62${digits.slice(1)}` : digits
 }
 
-export function buildTeamMessage(invoice: InvoiceRecord, event: InvoiceEventDetail | null) {
+function buildTeamLines(teamMembers: TeamAssignmentMember[]) {
+  if (teamMembers.length === 0) return []
+
+  const grouped = teamMembers.reduce<Record<string, string[]>>((items, member) => {
+    const label = teamRoleLabels[member.freelanceType] ?? member.freelanceType
+    return {
+      ...items,
+      [label]: [...(items[label] ?? []), member.fullName],
+    }
+  }, {})
+
+  return [
+    'Tim Bertugas:',
+    ...Object.entries(grouped).map(([role, names]) => `${role}: ${names.join(', ')}`),
+  ]
+}
+
+export function buildTeamMessage(invoice: InvoiceRecord, event: InvoiceEventDetail | null, teamMembers: TeamAssignmentMember[] = []) {
   const location = getPrimaryEventLocation(event, invoice.eventLocation || '-')
   const time = getPrimaryEventTime(event) || '-'
   const fieldLabels = new Map((event ? eventFieldDefinitions[event.eventType] : []).map((field) => [field.key, field.label]))
@@ -32,6 +58,8 @@ export function buildTeamMessage(invoice: InvoiceRecord, event: InvoiceEventDeta
     `Jam: ${time}`,
     `Lokasi: ${location}`,
     event?.location.googleMapsUrl ? `Google Maps: ${event.location.googleMapsUrl}` : '',
+    teamMembers.length > 0 ? '' : '',
+    ...buildTeamLines(teamMembers),
     detailLines.length > 0 ? '' : '',
     ...detailLines,
   ].filter(Boolean).join('\n')
@@ -55,7 +83,7 @@ export async function logTeamNotification(userId: string, invoiceId: string, cha
 }
 
 export function buildTeamWhatsappUrls(invoice: InvoiceRecord, event: InvoiceEventDetail | null, recipients: TeamAssignmentMember[]) {
-  const message = buildTeamMessage(invoice, event)
+  const message = buildTeamMessage(invoice, event, recipients)
   return recipients
     .map((recipient) => ({
       recipient,
@@ -64,8 +92,15 @@ export function buildTeamWhatsappUrls(invoice: InvoiceRecord, event: InvoiceEven
     .filter((entry) => normalizeWhatsapp(entry.recipient.whatsappNumber))
 }
 
+export function buildSingleTeamWhatsappUrl(invoice: InvoiceRecord, event: InvoiceEventDetail | null, recipient: TeamAssignmentMember, teamMembers: TeamAssignmentMember[]) {
+  const phone = normalizeWhatsapp(recipient.whatsappNumber)
+  if (!phone) return ''
+  const message = buildTeamMessage(invoice, event, teamMembers)
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+}
+
 export function buildTeamMailtoUrl(invoice: InvoiceRecord, event: InvoiceEventDetail | null, recipients: TeamAssignmentMember[]) {
-  const message = buildTeamMessage(invoice, event)
+  const message = buildTeamMessage(invoice, event, recipients)
   const emails = recipients.map((recipient) => recipient.email.trim()).filter(Boolean)
   const subject = `Detail Acara ${eventTypeLabels[invoice.eventType]} - ${invoice.clientName || invoice.invoiceNumber}`
 

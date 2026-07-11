@@ -9,9 +9,9 @@ import { eventFieldDefinitions, eventStatusLabels, eventStatusStyles, eventTypeL
 import { getInvoiceEventByInvoiceId, publishClientForm, upsertInvoiceEvent } from '../../services/firestore/invoiceEvents'
 import { freelanceTypeLabels, listFreelancers } from '../../services/firestore/freelancers'
 import { editJobStatusLabels, listJobDeliverables } from '../../services/firestore/jobDeliverables'
-import { getAssignmentConflicts, getAssignmentMembers, getTeamAssignmentByInvoiceId, saveTeamAssignment } from '../../services/firestore/teamAssignments'
-import { buildTeamMailtoUrl, buildTeamMessage, buildTeamWhatsappUrls, logTeamNotification } from '../../services/notifications/teamNotifications'
-import type { FreelanceRecord, FreelanceType, InvoiceEventDetail, InvoiceRecord, JobDeliverableRecord, TeamAssignmentRecord } from '../../types/domain'
+import { getAssignmentConflicts, getTeamAssignmentByInvoiceId, saveTeamAssignment } from '../../services/firestore/teamAssignments'
+import { buildSingleTeamWhatsappUrl, buildTeamMailtoUrl, buildTeamMessage, buildTeamWhatsappUrls, logTeamNotification } from '../../services/notifications/teamNotifications'
+import type { FreelanceRecord, FreelanceType, InvoiceEventDetail, InvoiceRecord, JobDeliverableRecord, TeamAssignmentMember } from '../../types/domain'
 
 type EventTeamPanelProps = {
   invoice: InvoiceRecord
@@ -84,7 +84,6 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
     googleMapsUrl: '',
   })
   const [freelancers, setFreelancers] = useState<FreelanceRecord[]>([])
-  const [assignment, setAssignment] = useState<TeamAssignmentRecord | null>(null)
   const [deliverables, setDeliverables] = useState<JobDeliverableRecord[]>([])
   const [clientDeliveryMessage, setClientDeliveryMessage] = useState('')
   const [selectedIds, setSelectedIds] = useState<Record<FreelanceType, string[]>>({
@@ -102,7 +101,27 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
 
   const formUrl = eventDetail?.publicFormSlug ? `${env.appUrl.replace(/\/$/, '')}/form/${eventDetail.publicFormSlug}` : ''
   const eventFields = eventDetail ? eventFieldDefinitions[eventDetail.eventType] : []
-  const selectedMembers = useMemo(() => getAssignmentMembers(assignment), [assignment])
+  const selectedMembersDraft = useMemo<TeamAssignmentMember[]>(() => {
+    const byId = new Map(freelancers.map((freelancer) => [freelancer.id, freelancer]))
+    const mapMembers = (type: FreelanceType) => selectedIds[type]
+      .map((freelancerId) => byId.get(freelancerId))
+      .filter((freelancer): freelancer is FreelanceRecord => Boolean(freelancer?.roles.includes(type)))
+      .map((freelancer) => ({
+        freelanceId: freelancer.id,
+        fullName: freelancer.fullName,
+        freelanceType: type,
+        whatsappNumber: freelancer.whatsappNumber,
+        email: freelancer.email,
+      }))
+
+    return [
+      ...mapMembers('FOTOGRAFER'),
+      ...mapMembers('VIDEOGRAFER'),
+      ...mapMembers('EDITOR_FOTO'),
+      ...mapMembers('EDITOR_VIDEO'),
+      ...mapMembers('ASISTEN'),
+    ]
+  }, [freelancers, selectedIds])
 
   const loadPanel = useCallback(async () => {
     if (!profile?.uid) return
@@ -123,7 +142,6 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
         googleMapsUrl: eventData?.location.googleMapsUrl ?? '',
       })
       setFreelancers(freelancerList)
-      setAssignment(assignmentData)
       setDeliverables(invoiceDeliverables)
       setClientDeliveryMessage(buildClientDeliveryMessage(invoice, invoiceDeliverables))
       setSelectedIds({
@@ -252,21 +270,22 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
     setErrorMessage('')
 
     try {
-      if (selectedMembers.length === 0) throw new Error('TEAM_RECIPIENTS_REQUIRED')
+      const notificationRecipients = selectedMembersDraft
+      if (notificationRecipients.length === 0) throw new Error('TEAM_RECIPIENTS_REQUIRED')
 
-      const notificationMessage = buildTeamMessage(invoice, eventDetail)
+      const notificationMessage = buildTeamMessage(invoice, eventDetail, notificationRecipients)
 
       if (channel === 'whatsapp') {
-        const whatsappUrls = buildTeamWhatsappUrls(invoice, eventDetail, selectedMembers)
+        const whatsappUrls = buildTeamWhatsappUrls(invoice, eventDetail, notificationRecipients)
         if (whatsappUrls.length === 0) throw new Error('TEAM_WHATSAPP_REQUIRED')
         whatsappUrls.forEach((entry) => window.open(entry.url, '_blank', 'noopener,noreferrer'))
         await logTeamNotification(profile.uid, invoice.id, channel, whatsappUrls.map((entry) => entry.recipient), 'sent', notificationMessage).catch(() => undefined)
         setMessage('WhatsApp tim sudah dibuka. Kirim pesan dari WhatsApp untuk masing-masing freelance.')
       } else {
-        const mailtoUrl = buildTeamMailtoUrl(invoice, eventDetail, selectedMembers)
+        const mailtoUrl = buildTeamMailtoUrl(invoice, eventDetail, notificationRecipients)
         if (!mailtoUrl) throw new Error('TEAM_EMAIL_REQUIRED')
         window.location.href = mailtoUrl
-        await logTeamNotification(profile.uid, invoice.id, channel, selectedMembers.filter((member) => member.email), 'sent', notificationMessage).catch(() => undefined)
+        await logTeamNotification(profile.uid, invoice.id, channel, notificationRecipients.filter((member) => member.email), 'sent', notificationMessage).catch(() => undefined)
         setMessage('Email tim sudah dibuka di aplikasi email perangkat ini.')
       }
     } catch (error) {
@@ -452,20 +471,47 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
                   <p className="rounded-md bg-app-muted p-3 text-sm text-neutral-500">Belum ada {freelanceTypeLabels[type]} aktif di Master Freelance.</p>
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {options.map((freelancer) => (
-                      <label className="flex items-start gap-3 rounded-md border border-app-border bg-white p-3 text-sm" key={freelancer.id}>
-                        <input
-                          checked={selectedIds[type].includes(freelancer.id)}
-                          className="mt-1 size-4"
-                          type="checkbox"
-                          onChange={() => toggleFreelancer(type, freelancer.id)}
-                        />
-                        <span>
-                          <span className="block font-semibold">{freelancer.fullName}</span>
-                          <span className="block text-xs text-neutral-500">{freelancer.whatsappNumber}</span>
-                        </span>
-                      </label>
-                    ))}
+                    {options.map((freelancer) => {
+                      const isSelected = selectedIds[type].includes(freelancer.id)
+                      const member: TeamAssignmentMember = {
+                        freelanceId: freelancer.id,
+                        fullName: freelancer.fullName,
+                        freelanceType: type,
+                        whatsappNumber: freelancer.whatsappNumber,
+                        email: freelancer.email,
+                      }
+                      const whatsappUrl = isSelected ? buildSingleTeamWhatsappUrl(invoice, eventDetail, member, selectedMembersDraft) : ''
+
+                      return (
+                        <div className="grid gap-3 rounded-md border border-app-border bg-white p-3 text-sm" key={freelancer.id}>
+                          <label className="flex items-start gap-3">
+                            <input
+                              checked={isSelected}
+                              className="mt-1 size-4"
+                              type="checkbox"
+                              onChange={() => toggleFreelancer(type, freelancer.id)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold">{freelancer.fullName}</span>
+                              <span className="block truncate text-xs text-neutral-500">{freelancer.whatsappNumber || 'Nomor WhatsApp belum diisi'}</span>
+                            </span>
+                          </label>
+                          {isSelected ? (
+                            whatsappUrl ? (
+                              <a href={whatsappUrl} rel="noreferrer" target="_blank">
+                                <Button className="w-full justify-center" icon={<MessageCircle size={16} />} type="button" variant="secondary">
+                                  WA {freelanceTypeLabels[type]}
+                                </Button>
+                              </a>
+                            ) : (
+                              <Button className="w-full justify-center" disabled icon={<MessageCircle size={16} />} type="button" variant="secondary">
+                                WA belum tersedia
+                              </Button>
+                            )
+                          ) : null}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
