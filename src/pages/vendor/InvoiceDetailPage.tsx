@@ -178,7 +178,7 @@ export function InvoiceDetailPage() {
       ) : invoice ? (
         <>
           <EventTeamPanel invoice={invoice} onChanged={loadInvoice} />
-          <PaymentManager invoice={invoice} onChanged={loadInvoice} />
+          <PaymentManager initialPayments={payments} invoice={invoice} onChanged={loadInvoice} />
 
           <Card className="print-card">
             <CardContent className="print-card-content">

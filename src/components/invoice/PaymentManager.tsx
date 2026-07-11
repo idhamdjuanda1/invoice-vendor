@@ -20,6 +20,7 @@ import type { InvoiceRecord, PaymentMethod, PaymentRecord } from '../../types/do
 
 type PaymentManagerProps = {
   invoice: InvoiceRecord
+  initialPayments?: PaymentRecord[]
   onChanged: () => Promise<void>
 }
 
@@ -42,15 +43,15 @@ function getPaymentError(error: unknown) {
   return messages[message] ?? 'Pembayaran belum bisa diproses. Coba lagi beberapa saat.'
 }
 
-export function PaymentManager({ invoice, onChanged }: PaymentManagerProps) {
+export function PaymentManager({ invoice, initialPayments, onChanged }: PaymentManagerProps) {
   const { profile } = useAuth()
-  const [payments, setPayments] = useState<PaymentRecord[]>([])
+  const [payments, setPayments] = useState<PaymentRecord[]>(initialPayments ?? [])
   const [amountInput, setAmountInput] = useState('')
   const [paymentDate, setPaymentDate] = useState(todayInputDate())
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod)
   const [notes, setNotes] = useState('')
   const [editingPaymentId, setEditingPaymentId] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!initialPayments)
   const [isSaving, setIsSaving] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -72,8 +73,14 @@ export function PaymentManager({ invoice, onChanged }: PaymentManagerProps) {
   }, [invoice.id, profile?.uid])
 
   useEffect(() => {
+    if (initialPayments) {
+      setPayments(initialPayments)
+      setIsLoading(false)
+      return
+    }
+
     void loadPayments()
-  }, [loadPayments])
+  }, [initialPayments, loadPayments])
 
   function resetForm() {
     setAmountInput('')
