@@ -18,6 +18,10 @@ function getShareUrl(slug: string) {
   return `https://invoice-vendor-r2.idm-invoice-vendor.workers.dev/share/pricelist/${slug}`
 }
 
+function getHomeShareUrl() {
+  return 'https://invoice-vendor-r2.idm-invoice-vendor.workers.dev/share/home'
+}
+
 export function PricelistsPage() {
   const { profile } = useAuth()
   const [pricelists, setPricelists] = useState<PricelistRecord[]>([])
@@ -95,9 +99,19 @@ export function PricelistsPage() {
         title="Pricelist"
         description="Buat link publish profesional dari paket yang sudah tersedia, lalu bagikan ke calon klien tanpa perlu login."
         actions={
-          <Link to="/pricelists/new">
-            <Button icon={<Plus size={16} />}>Buat Pricelist</Button>
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              icon={<Copy size={16} />}
+              onClick={() => void navigator.clipboard.writeText(getHomeShareUrl()).then(() => setMessage('Link website utama berhasil disalin.')).catch(() => setErrorMessage('Link website utama belum bisa disalin.'))}
+              type="button"
+              variant="secondary"
+            >
+              Share Website
+            </Button>
+            <Link to="/pricelists/new">
+              <Button icon={<Plus size={16} />}>Buat Pricelist</Button>
+            </Link>
+          </div>
         }
       />
 

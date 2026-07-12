@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Invoice Vendor</title>
+  <desc id="desc">Invoice Vendor preview image</desc>
+  <rect width="1200" height="630" fill="#f6f3ec"/>
+  <rect x="72" y="72" width="1056" height="486" rx="28" fill="#ffffff" stroke="#ded7c9" stroke-width="3"/>
+  <rect x="116" y="116" width="112" height="112" rx="24" fill="#d6ad2f"/>
+  <path d="M149 154h46v12h-46v-12Zm0 30h74v12h-74v-12Zm0 30h58v12h-58v-12Z" fill="#201b14"/>
+  <text x="116" y="306" fill="#b89321" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" letter-spacing="8">WEDDING &amp; EVENT</text>
+  <text x="116" y="386" fill="#201b14" font-family="Georgia, 'Times New Roman', serif" font-size="78" font-weight="700">Invoice Vendor</text>
+  <text x="116" y="448" fill="#5f5b53" font-family="Arial, Helvetica, sans-serif" font-size="34">Invoice, pricelist publish, data klien, tim, dan accounting.</text>
+  <text x="116" y="502" fill="#5f5b53" font-family="Arial, Helvetica, sans-serif" font-size="28">Sibuk motret, bukan sibuk ngurus admin.</text>
+</svg>

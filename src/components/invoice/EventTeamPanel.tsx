@@ -39,6 +39,14 @@ function buildClientFormWhatsappUrl(invoice: InvoiceRecord, formUrl: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
 }
 
+function getClientFormPublicUrl(slug: string) {
+  return `${env.appUrl.replace(/\/$/, '')}/form/${slug}`
+}
+
+function getClientFormShareUrl(slug: string) {
+  return `https://invoice-vendor-r2.idm-invoice-vendor.workers.dev/share/form/${slug}`
+}
+
 function getFilledDeliverableLinks(deliverable: JobDeliverableRecord) {
   return [
     ['Foto RAW', deliverable.links.photoRawUrl],
@@ -99,7 +107,8 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
   const [errorMessage, setErrorMessage] = useState('')
   const [loadingAction, setLoadingAction] = useState('')
 
-  const formUrl = eventDetail?.publicFormSlug ? `${env.appUrl.replace(/\/$/, '')}/form/${eventDetail.publicFormSlug}` : ''
+  const formUrl = eventDetail?.publicFormSlug ? getClientFormPublicUrl(eventDetail.publicFormSlug) : ''
+  const formShareUrl = eventDetail?.publicFormSlug ? getClientFormShareUrl(eventDetail.publicFormSlug) : ''
   const eventFields = eventDetail ? eventFieldDefinitions[eventDetail.eventType] : []
   const selectedMembersDraft = useMemo<TeamAssignmentMember[]>(() => {
     const byId = new Map(freelancers.map((freelancer) => [freelancer.id, freelancer]))
@@ -184,7 +193,7 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
       const slug = await publishClientForm(profile.uid, invoice.id, invoice.eventType)
       await loadPanel()
       onChanged()
-      const url = `${env.appUrl.replace(/\/$/, '')}/form/${slug}`
+      const url = getClientFormShareUrl(slug)
       await navigator.clipboard?.writeText(url).catch(() => undefined)
       setMessage('Form klien berhasil dipublish. Link sudah disiapkan untuk dibagikan.')
     } catch (error) {
@@ -353,11 +362,11 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
             </Button>
             {formUrl ? (
               <>
-                <Button icon={<Copy size={16} />} variant="secondary" onClick={() => void navigator.clipboard?.writeText(formUrl)}>
+                <Button icon={<Copy size={16} />} variant="secondary" onClick={() => void navigator.clipboard?.writeText(formShareUrl || formUrl)}>
                   Copy Link
                 </Button>
                 {invoice.clientWhatsappNumber ? (
-                  <a href={buildClientFormWhatsappUrl(invoice, formUrl)} rel="noreferrer" target="_blank">
+                  <a href={buildClientFormWhatsappUrl(invoice, formShareUrl || formUrl)} rel="noreferrer" target="_blank">
                     <Button icon={<MessageCircle size={16} />} type="button" variant="secondary">
                       Kirim ke Klien
                     </Button>
@@ -366,7 +375,7 @@ export function EventTeamPanel({ invoice, onChanged }: EventTeamPanelProps) {
               </>
             ) : null}
           </div>
-          {formUrl ? <p className="break-all rounded-md bg-app-muted p-3 text-sm text-neutral-600">{formUrl}</p> : null}
+          {formUrl ? <p className="break-all rounded-md bg-app-muted p-3 text-sm text-neutral-600">{formShareUrl || formUrl}</p> : null}
 
           {eventDetail ? (
             <div className="grid gap-3 rounded-md border border-app-border p-4 sm:grid-cols-2">

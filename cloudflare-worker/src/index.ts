@@ -36,6 +36,8 @@ type FirestoreRunQueryItem = {
 
 const maxLogoSizeBytes = 2 * 1024 * 1024
 const maxPricelistImageSizeBytes = 8 * 1024 * 1024
+const appOrigin = 'https://invoice-vendor.web.app'
+const defaultShareImage = `${appOrigin}/og-invoice-vendor.svg`
 
 function jsonResponse(body: unknown, status: number, headers: HeadersInit) {
   return new Response(JSON.stringify(body), {
@@ -141,7 +143,15 @@ function escapeHtml(value: string) {
     .replace(/"/g, '&quot;')
 }
 
-async function getPublishedPricelist(env: Env, slug: string) {
+function getString(fields: Record<string, FirestoreValue> | null | undefined, field: string) {
+  return fields?.[field]?.stringValue ?? ''
+}
+
+function getBoolean(fields: Record<string, FirestoreValue> | null | undefined, field: string) {
+  return fields?.[field]?.booleanValue === true
+}
+
+async function runFirestoreQuery(env: Env, collectionId: string, filters: Array<{ field: string; value: string | boolean }>) {
   const response = await fetch(
     `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=${env.FIREBASE_API_KEY}`,
     {
@@ -151,14 +161,19 @@ async function getPublishedPricelist(env: Env, slug: string) {
       },
       body: JSON.stringify({
         structuredQuery: {
-          from: [{ collectionId: 'pricelists' }],
+          from: [{ collectionId }],
           where: {
             compositeFilter: {
               op: 'AND',
-              filters: [
-                { fieldFilter: { field: { fieldPath: 'slug' }, op: 'EQUAL', value: { stringValue: slug } } },
-                { fieldFilter: { field: { fieldPath: 'isPublished' }, op: 'EQUAL', value: { booleanValue: true } } },
-              ],
+              filters: filters.map((filter) => ({
+                fieldFilter: {
+                  field: { fieldPath: filter.field },
+                  op: 'EQUAL',
+                  value: typeof filter.value === 'boolean'
+                    ? { booleanValue: filter.value }
+                    : { stringValue: filter.value },
+                },
+              })),
             },
           },
           limit: 1,
@@ -168,51 +183,110 @@ async function getPublishedPricelist(env: Env, slug: string) {
   )
 
   if (!response.ok) return null
-
   const data = await response.json<FirestoreRunQueryItem[]>()
-  const fields = data.find((item) => item.document)?.document?.fields
+  return data.find((item) => item.document)?.document?.fields ?? null
+}
+
+async function getDocumentFields(env: Env, collectionId: string, documentId: string) {
+  const response = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${collectionId}/${encodeURIComponent(documentId)}?key=${env.FIREBASE_API_KEY}`,
+  )
+  if (!response.ok) return null
+  const data = await response.json<{ fields?: Record<string, FirestoreValue> }>()
+  return data.fields ?? null
+}
+
+function getFirstPricelistImage(fields: Record<string, FirestoreValue> | undefined) {
+  return fields?.items?.arrayValue?.values?.find((item) => item.mapValue?.fields?.imageUrl?.stringValue)?.mapValue?.fields?.imageUrl?.stringValue ?? ''
+}
+
+async function getPublishedPricelist(env: Env, slug: string) {
+  const fields = await runFirestoreQuery(env, 'pricelists', [
+    { field: 'slug', value: slug },
+    { field: 'isPublished', value: true },
+  ])
   if (!fields) return null
 
+  const userId = getString(fields, 'userId')
+  const publicProfile = userId ? await getDocumentFields(env, 'publicVendorProfiles', userId) : null
+
   return {
-    title: fields.title?.stringValue ?? 'Pricelist Invoice Vendor',
-    vendorName: fields.vendorName?.stringValue ?? 'Invoice Vendor',
-    tagline: fields.tagline?.stringValue ?? '',
-    thumbnailUrl: fields.thumbnailUrl?.stringValue
-      ?? fields.items?.arrayValue?.values?.find((item) => item.mapValue?.fields?.imageUrl?.stringValue)?.mapValue?.fields?.imageUrl?.stringValue
-      ?? '',
+    title: getString(fields, 'title') || 'Pricelist Invoice Vendor',
+    vendorName: getString(publicProfile ?? fields, 'vendorName') || 'Invoice Vendor',
+    tagline: getString(fields, 'tagline'),
+    thumbnailUrl: getString(fields, 'thumbnailUrl') || getFirstPricelistImage(fields) || getString(publicProfile, 'logoUrl') || defaultShareImage,
   }
 }
 
-async function getPricelistShareHtml(request: Request, env: Env, slug: string) {
-  const pricelist = await getPublishedPricelist(env, slug)
-  const targetUrl = `https://invoice-vendor.web.app/pricelist/${encodeURIComponent(slug)}`
-  const title = pricelist ? `${pricelist.title} - ${pricelist.vendorName}` : 'Pricelist Invoice Vendor'
-  const description = pricelist?.tagline || 'Pricelist paket vendor event Indonesia.'
-  const imageMeta = pricelist?.thumbnailUrl
-    ? `<meta property="og:image" content="${escapeHtml(pricelist.thumbnailUrl)}">
-<meta name="twitter:image" content="${escapeHtml(pricelist.thumbnailUrl)}">`
-    : ''
-
+function getShareHtml(request: Request, env: Env, targetUrl: string, meta: { title: string; description: string; imageUrl?: string }, status = 200) {
+  const imageUrl = meta.imageUrl || defaultShareImage
   return htmlResponse(`<!doctype html>
 <html lang="id">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)}</title>
-  <meta name="description" content="${escapeHtml(description)}">
+  <title>${escapeHtml(meta.title)}</title>
+  <meta name="description" content="${escapeHtml(meta.description)}">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="${escapeHtml(title)}">
-  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:site_name" content="Invoice Vendor">
+  <meta property="og:title" content="${escapeHtml(meta.title)}">
+  <meta property="og:description" content="${escapeHtml(meta.description)}">
   <meta property="og:url" content="${escapeHtml(request.url)}">
-  ${imageMeta}
+  <meta property="og:image" content="${escapeHtml(imageUrl)}">
+  <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(meta.title)}">
+  <meta name="twitter:description" content="${escapeHtml(meta.description)}">
+  <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
   <meta http-equiv="refresh" content="0; url=${escapeHtml(targetUrl)}">
 </head>
 <body>
   <script>window.location.replace(${JSON.stringify(targetUrl)})</script>
-  <a href="${escapeHtml(targetUrl)}">Buka pricelist</a>
+  <a href="${escapeHtml(targetUrl)}">Buka Invoice Vendor</a>
 </body>
-</html>`, pricelist ? 200 : 404, getCorsHeaders(request, env))
+</html>`, status, getCorsHeaders(request, env))
+}
+
+async function getPricelistShareHtml(request: Request, env: Env, slug: string) {
+  const pricelist = await getPublishedPricelist(env, slug)
+  const targetUrl = `${appOrigin}/pricelist/${encodeURIComponent(slug)}`
+
+  return getShareHtml(request, env, targetUrl, {
+    title: pricelist ? `${pricelist.title} - ${pricelist.vendorName}` : 'Pricelist Invoice Vendor',
+    description: pricelist?.tagline || 'Pricelist paket vendor wedding & event Indonesia.',
+    imageUrl: pricelist?.thumbnailUrl,
+  }, pricelist ? 200 : 404)
+}
+
+async function getClientFormShareHtml(request: Request, env: Env, slug: string) {
+  const eventFields = await runFirestoreQuery(env, 'invoiceEvents', [
+    { field: 'publicFormSlug', value: slug },
+    { field: 'publicFormEnabled', value: true },
+  ])
+  const invoiceId = getString(eventFields, 'invoiceId')
+  const invoiceFields = invoiceId ? await getDocumentFields(env, 'invoices', invoiceId) : null
+  const userId = getString(eventFields, 'userId') || getString(invoiceFields, 'userId')
+  const publicProfile = userId ? await getDocumentFields(env, 'publicVendorProfiles', userId) : null
+  const clientName = getString(invoiceFields, 'clientName')
+  const vendorName = getString(publicProfile, 'vendorName') || 'Invoice Vendor'
+  const eventType = getString(eventFields, 'eventType') || getString(invoiceFields, 'eventType') || 'Acara'
+  const targetUrl = `${appOrigin}/form/${encodeURIComponent(slug)}`
+
+  return getShareHtml(request, env, targetUrl, {
+    title: clientName ? `Form Detail Acara - ${clientName}` : 'Form Detail Acara Klien',
+    description: `Lengkapi data acara ${eventType.toLowerCase()} untuk ${vendorName}. Data ini tidak mengubah invoice atau pembayaran.`,
+    imageUrl: getString(publicProfile, 'logoUrl') || defaultShareImage,
+  }, eventFields && getBoolean(invoiceFields, 'publicFormEnabled') ? 200 : 404)
+}
+
+function getHomeShareHtml(request: Request, env: Env) {
+  return getShareHtml(request, env, appOrigin, {
+    title: 'Invoice Vendor',
+    description: 'Kelola invoice, klien, jadwal tim, editor, pricelist publish, dan accounting untuk vendor wedding & event.',
+    imageUrl: defaultShareImage,
+  })
 }
 
 function getErrorMessage(error: unknown) {
@@ -238,9 +312,18 @@ export default {
       if (request.method === 'GET') {
         const url = new URL(request.url)
         const objectKey = decodeURIComponent(url.pathname.replace(/^\/+/, ''))
-        const shareMatch = objectKey.match(/^share\/pricelist\/([^/]+)$/)
-        if (shareMatch?.[1]) {
-          return getPricelistShareHtml(request, env, decodeURIComponent(shareMatch[1]))
+        const pricelistShareMatch = objectKey.match(/^share\/pricelist\/([^/]+)$/)
+        if (pricelistShareMatch?.[1]) {
+          return getPricelistShareHtml(request, env, decodeURIComponent(pricelistShareMatch[1]))
+        }
+
+        const formShareMatch = objectKey.match(/^share\/form\/([^/]+)$/)
+        if (formShareMatch?.[1]) {
+          return getClientFormShareHtml(request, env, decodeURIComponent(formShareMatch[1]))
+        }
+
+        if (objectKey === 'share' || objectKey === 'share/home') {
+          return getHomeShareHtml(request, env)
         }
 
         if (!isPublicAssetKey(objectKey)) {
