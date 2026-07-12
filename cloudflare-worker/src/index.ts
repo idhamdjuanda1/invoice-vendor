@@ -37,7 +37,7 @@ type FirestoreRunQueryItem = {
 const maxLogoSizeBytes = 2 * 1024 * 1024
 const maxPricelistImageSizeBytes = 8 * 1024 * 1024
 const appOrigin = 'https://invoice-vendor.web.app'
-const defaultShareImage = `${appOrigin}/og-invoice-vendor.svg`
+const defaultShareImage = `${appOrigin}/invoice-vendor-logo.png`
 
 function jsonResponse(body: unknown, status: number, headers: HeadersInit) {
   return new Response(JSON.stringify(body), {
