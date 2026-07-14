@@ -2,6 +2,7 @@ import { Edit, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
+import { CurrencyInput } from '../../components/ui/CurrencyInput'
 import { Input } from '../../components/ui/Input'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { getFriendlyAuthError } from '../../features/auth/authErrors'
@@ -322,13 +323,11 @@ export function PackagesPage() {
                 required
                 value={form.name}
               />
-              <Input
+              <CurrencyInput
                 id="price"
                 label="Harga paket"
-                min={0}
-                onChange={(event) => updateField('price', Number(event.target.value))}
-                type="number"
-                value={String(form.price)}
+                onValueChange={(_, numericValue) => updateField('price', numericValue)}
+                value={form.price}
               />
               <Input
                 id="eventDuration"

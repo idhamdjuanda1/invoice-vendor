@@ -10,3 +10,9 @@ export function parseCurrencyInput(value: string) {
   const normalized = value.replace(/[^\d]/g, '')
   return normalized ? Number(normalized) : 0
 }
+
+export function formatCurrencyInput(value: string | number) {
+  const digits = String(value).replace(/[^\d]/g, '')
+  if (!digits) return ''
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+}

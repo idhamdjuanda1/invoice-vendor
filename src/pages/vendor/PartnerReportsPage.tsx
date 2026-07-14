@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Loader2, Save, X } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader } from '../../components/ui/Card'
+import { CurrencyInput } from '../../components/ui/CurrencyInput'
 import { Input } from '../../components/ui/Input'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { StatCard } from '../../components/ui/StatCard'
@@ -334,11 +335,10 @@ export function PartnerReportsPage() {
 
                       {payingInvoiceId === invoice.id ? (
                         <form className="mt-4 grid gap-3 rounded-md border border-app-border bg-app-muted p-4 md:grid-cols-2" onSubmit={handlePayCommission}>
-                          <Input
-                            inputMode="numeric"
+                          <CurrencyInput
                             label="Nominal"
                             value={paymentInput.amount}
-                            onChange={(event) => setPaymentInput((current) => ({ ...current, amount: event.target.value }))}
+                            onValueChange={(formattedValue) => setPaymentInput((current) => ({ ...current, amount: formattedValue }))}
                           />
                           <Input
                             label="Tanggal Bayar"

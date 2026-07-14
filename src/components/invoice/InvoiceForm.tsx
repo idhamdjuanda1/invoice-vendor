@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Loader2, Save } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Card, CardContent, CardHeader } from '../ui/Card'
+import { CurrencyInput } from '../ui/CurrencyInput'
 import { Input } from '../ui/Input'
 import { getFriendlyAuthError } from '../../features/auth/authErrors'
 import { useAuth } from '../../features/auth/useAuth'
@@ -452,13 +453,21 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
                   <option value="NOMINAL">Nominal (Rp)</option>
                 </select>
               </label>
-              {partnerCommissionMode !== 'NONE' ? (
+              {partnerCommissionMode === 'PERCENTAGE' ? (
                 <Input
-                  hint={partnerCommissionMode === 'PERCENTAGE' ? 'Contoh: 10 untuk komisi 10%.' : 'Contoh: 300000 untuk komisi Rp300.000.'}
+                  hint="Contoh: 10 untuk komisi 10%."
                   inputMode="numeric"
-                  label={partnerCommissionMode === 'PERCENTAGE' ? 'Persentase Komisi' : 'Nominal Komisi'}
+                  label="Persentase Komisi"
                   value={partnerCommissionInput}
                   onChange={(event) => setPartnerCommissionInput(event.target.value)}
+                />
+              ) : null}
+              {partnerCommissionMode === 'NOMINAL' ? (
+                <CurrencyInput
+                  hint="Contoh: 300 000 untuk komisi Rp300.000."
+                  label="Nominal Komisi"
+                  value={partnerCommissionInput}
+                  onValueChange={(formattedValue) => setPartnerCommissionInput(formattedValue)}
                 />
               ) : null}
               <div className="rounded-md bg-app-muted p-4">
@@ -597,12 +606,11 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
           ) : null}
 
           {discountMode === 'MANUAL' ? (
-            <Input
+            <CurrencyInput
               hint="Masukkan nominal potongan hasil negosiasi dengan klien."
-              inputMode="numeric"
               label="Potongan Harga"
-              onChange={(event) => setManualDiscountInput(event.target.value)}
-              placeholder="Contoh: 300000"
+              onValueChange={(formattedValue) => setManualDiscountInput(formattedValue)}
+              placeholder="Contoh: 300 000"
               value={manualDiscountInput}
             />
           ) : null}
@@ -635,11 +643,10 @@ export function InvoiceForm({ invoice, mode }: InvoiceFormProps) {
           <h2 className="text-base font-semibold">Pembayaran</h2>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <Input
+          <CurrencyInput
             label="Nominal DP atau Cicilan"
-            inputMode="numeric"
             value={paymentAmountInput}
-            onChange={(event) => setPaymentAmountInput(event.target.value)}
+            onValueChange={(formattedValue) => setPaymentAmountInput(formattedValue)}
             hint="Kosongkan jika belum ada pembayaran."
           />
           <label className="grid gap-2 text-sm font-medium text-app-text">

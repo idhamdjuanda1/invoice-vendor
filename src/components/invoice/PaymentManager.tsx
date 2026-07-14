@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { AlertCircle, CheckCircle2, Edit3, Loader2, Plus, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Card, CardContent, CardHeader } from '../ui/Card'
+import { CurrencyInput } from '../ui/CurrencyInput'
 import { Input } from '../ui/Input'
 import { WhatsAppReminderButton } from './WhatsAppReminderButton'
 import { useAuth } from '../../features/auth/useAuth'
@@ -232,11 +233,10 @@ export function PaymentManager({ invoice, initialPayments, onChanged }: PaymentM
         </CardHeader>
         <CardContent>
           <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
-            <Input
+            <CurrencyInput
               label="Nominal Pembayaran"
-              inputMode="numeric"
               value={amountInput}
-              onChange={(event) => setAmountInput(event.target.value)}
+              onValueChange={(formattedValue) => setAmountInput(formattedValue)}
             />
             <Input
               label="Tanggal Pembayaran"
